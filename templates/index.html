@@ -5,29 +5,25 @@
     <style>
         :root { --bg: #0f172a; --sidebar: #1e293b; --card: #1e293b; --accent: #38bdf8; --danger: #ef4444; }
         body { background: var(--bg); color: #f1f5f9; font-family: 'Inter', sans-serif; display: flex; margin: 0; min-height: 100vh; }
-        
         .sidebar { width: 280px; background: var(--sidebar); padding: 25px; border-right: 1px solid #334155; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
         .cat-item { display: flex; justify-content: space-between; padding: 10px; color: #94a3b8; text-decoration: none; border-radius: 8px; margin-bottom: 5px; }
         .cat-active { background: #334155; color: var(--accent); }
         .badge { background: #0f172a; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
-
         .main-content { flex: 1; padding: 40px; max-width: 1200px; }
         .add-form { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; background: var(--card); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 1px solid #334155; }
         input, button { background: #0f172a; border: 1px solid #475569; color: white; padding: 10px; border-radius: 8px; }
-        button { cursor: pointer; transition: 0.2s; }
-        .btn-accent { background: var(--accent); color: #0f172a; border: none; font-weight: bold; }
-
+        .btn-accent { background: var(--accent); color: #0f172a; border: none; font-weight: bold; cursor: pointer; }
+        
         /* View Modes */
         .wrapper { display: grid; gap: 15px; }
         .grid-view { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
         .small-view { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
         .list-view { grid-template-columns: 1fr; }
-
         .card { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid #334155; position: relative; transition: 0.3s; }
         .card:hover { border-color: var(--accent); transform: translateY(-3px); }
         .card img { width: 32px; height: 32px; border-radius: 4px; background: white; padding: 2px; }
-        .small-view .card img { width: 18px; height: 18px; }
-        
+        .small-view img { width: 18px; height: 18px; }
+
         .bulk-drawer { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: var(--accent); color: #000; padding: 15px 30px; border-radius: 50px; display: none; z-index: 1000; gap: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); align-items: center; }
         .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); }
         .modal-content { background: var(--card); margin: 10% auto; padding: 30px; border-radius: 15px; width: 400px; border: 1px solid var(--accent); }
@@ -37,69 +33,70 @@
 
 <div class="sidebar">
     <h2>📁 Total: {{ total }}</h2>
-    <a href="/" class="cat-item {% if not current_cat %}cat-active{% endif %}">
-        <span>All Bookmarks</span> <span class="badge">{{ total }}</span>
-    </a>
+    <a href="/" class="cat-item {% if not current_cat %}cat-active{% endif %}"><span>All Items</span> <span class="badge">{{ total }}</span></a>
     {% for c in categories %}
         <a href="/?category={{ c.category }}" class="cat-item {% if current_cat == c.category %}cat-active{% endif %}">
             <span>{{ c.category }}</span> <span class="badge">{{ c.count }}</span>
         </a>
     {% endfor %}
     <hr style="border: 0.5px solid #334155; margin: 20px 0;">
-    <a href="/export_csv" class="cat-item" style="color: var(--accent);">📊 Download CSV Table</a>
-    <a href="/backup" class="cat-item" style="color: #4ade80;">📥 Download .DB Backup</a>
+    <div style="font-size: 12px; color: #64748b; margin-bottom: 10px;">EXPORT AS:</div>
+    <a href="/export/excel" class="cat-item">Excel Table</a>
+    <a href="/export/csv" class="cat-item">CSV Table</a>
+    <a href="/backup" class="cat-item" style="color: #4ade80;">Full DB Backup</a>
 </div>
 
 <div class="main-content">
-    <!-- Search and View Toggles -->
     <div style="display:flex; gap:10px; margin-bottom:20px;">
         <form style="flex:1; display:flex; gap:10px;">
-            <input type="text" name="q" placeholder="Search title, URL, or tags..." value="{{ search_query }}" style="flex:1;">
+            <input type="text" name="q" placeholder="Search..." value="{{ search_query }}" style="flex:1;">
             <button type="submit" class="btn-accent">Search</button>
         </form>
         <button onclick="setView('grid-view')">Grid</button>
         <button onclick="setView('small-view')">Icons</button>
         <button onclick="setView('list-view')">List</button>
-        <button onclick="toggleBulk()" style="background:#475569; color:white; border:none;">Bulk Mode</button>
+        <button onclick="toggleBulk()" style="background:#475569; color:white;">Bulk Edit</button>
     </div>
 
-    <!-- Data Import/Export Forms -->
     <div class="add-form">
-        <form action="/import_csv" method="post" enctype="multipart/form-data" style="grid-column: span 4; border-bottom: 1px solid #334155; padding-bottom: 15px; margin-bottom: 5px;">
-            <label style="font-size: 12px; color: #94a3b8;">Sync CSV Back:</label>
-            <input type="file" name="file" accept=".csv" required style="font-size:12px;">
-            <button type="submit" style="padding: 5px 15px;">Update from CSV</button>
+        <form action="/import_file" method="post" enctype="multipart/form-data" style="grid-column: span 4; border-bottom: 1px solid #334155; padding-bottom: 15px; margin-bottom: 5px;">
+            <label style="font-size: 12px; color: #94a3b8;">Import (HTML/CSV/Excel):</label>
+            <input type="file" name="file" accept=".html,.csv,.xlsx" required onchange="this.form.submit()">
         </form>
-        <!-- Standard Add Link Form -->
         <form action="/add" method="post" style="display:contents;">
-            <input type="text" name="title" placeholder="Site Name" required>
-            <input type="url" name="url" placeholder="URL (https://...)" required>
+            <input type="text" name="title" placeholder="Name" required>
+            <input type="url" name="url" placeholder="URL" required>
             <input type="text" name="category" placeholder="Category">
             <button type="submit" class="btn-accent">Add Link</button>
         </form>
     </div>
 
-    <!-- Bookmark List -->
+    <h3>⭐ Most Visited</h3>
+    <div class="wrapper small-view" style="margin-bottom: 30px;">
+        {% for b in top_links %}
+            <div class="card" style="border-color: gold;">
+                <a href="/visit/{{b.id}}" target="_blank" style="color:white; text-decoration:none; font-size:12px;">{{b.title}} ({{b.clicks}})</a>
+            </div>
+        {% endfor %}
+    </div>
+
     <form id="bulkForm" action="/bulk_update" method="post">
         <div id="bulkDrawer" class="bulk-drawer">
-            <span id="selectedCount" style="font-weight:bold;">0 Selected</span>
-            <input type="text" name="new_category" placeholder="Change Category" style="background:white; color:black;">
-            <button type="submit" style="background:black; color:white; border:none;">Apply</button>
+            <span id="selectedCount">0 Selected</span>
+            <input type="text" name="new_category" placeholder="New Category" style="background:white; color:black;">
+            <button type="submit" style="background:black; color:white;">Apply</button>
         </div>
 
         <div id="wrapper" class="wrapper grid-view">
             {% for b in bookmarks %}
             <div class="card">
                 <input type="checkbox" name="selected_ids" value="{{ b.id }}" class="bulk-ui" style="display:none; position:absolute; top:10px; left:10px;" onchange="updateCount()">
-                
-                <!-- Feature 10 & 13: Favicon with Global fallback -->
+                <!-- Favicon with Globe fallback -->
                 <img src="https://google.com{{ b.url }}" 
                      onerror="this.src='https://flaticon.com'">
+                <div style="font-size:11px; color:var(--accent); margin-top:5px;">{{ b.category }}</div>
+                <a href="/visit/{{ b.id }}" target="_blank" style="color:white; text-decoration:none; font-weight:bold; display:block; margin:8px 0;">{{ b.title }}</a>
                 
-                <div style="font-size:11px; color:var(--accent); margin-top:5px;">{{ b.category }} | {{ b.clicks }} visits</div>
-                <a href="/visit/{{ b.id }}" target="_blank" style="color:white; text-decoration:none; display:block; margin:8px 0; font-weight:bold;">{{ b.title }}</a>
-                
-                <!-- Action Buttons -->
                 <button type="button" style="background:none; border:none; color:var(--accent); position:absolute; top:10px; right:35px; cursor:pointer;" 
                         onclick="openEditModal('{{b.id}}','{{b.title}}','{{b.url}}','{{b.category}}','{{b.tags}}')">✎</button>
                 <a href="/delete/{{ b.id }}" style="color:var(--danger); text-decoration:none; position:absolute; top:10px; right:10px; font-weight:bold;" onclick="return confirm('Delete?')">×</a>
@@ -108,11 +105,10 @@
         </div>
     </form>
 
-    <!-- Danger Zone -->
     <div class="add-form" style="margin-top: 50px; border: 1px solid var(--danger);">
         <h4 style="color:var(--danger); margin:0;">Danger Zone</h4>
-        <form action="/clear_all" method="post" onsubmit="return confirm('Wipe entire database forever?')">
-            <button type="submit" style="background:var(--danger); color:white; border:none;">Clear Entire DB</button>
+        <form action="/clear_all" method="post" onsubmit="return confirm('Clear All?')">
+            <button type="submit" style="background:var(--danger); color:white;">Wipe Database</button>
         </form>
     </div>
 </div>
@@ -126,41 +122,31 @@
             <input type="url" name="url" id="editUrl" required style="width:100%; margin-bottom:10px;">
             <input type="text" name="category" id="editCat" style="width:100%; margin-bottom:10px;">
             <input type="text" name="tags" id="editTags" style="width:100%; margin-bottom:20px;">
-            <button type="submit" class="btn-accent" style="width:100%;">Save Changes</button>
-            <button type="button" onclick="closeModal()" style="width:100%; background:#444; margin-top:10px; border:none; color:white;">Cancel</button>
+            <button type="submit" class="btn-accent" style="width:100%;">Save</button>
+            <button type="button" onclick="closeModal()" style="width:100%; background:#444; margin-top:10px;">Cancel</button>
         </form>
     </div>
 </div>
 
 <script>
     function setView(v) { document.getElementById('wrapper').className = 'wrapper ' + v; }
-
     function toggleBulk() {
         const ui = document.querySelectorAll('.bulk-ui');
         const dr = document.getElementById('bulkDrawer');
-        const isHidden = ui[0].style.display === 'none';
-        ui.forEach(c => c.style.display = isHidden ? 'block' : 'none');
-        dr.style.display = isHidden ? 'flex' : 'none';
+        const show = ui[0].style.display === 'none';
+        ui.forEach(c => c.style.display = show ? 'block' : 'none');
+        dr.style.display = show ? 'flex' : 'none';
     }
-
     function updateCount() {
-        const count = document.querySelectorAll('input[name="selected_ids"]:checked').length;
-        document.getElementById('selectedCount').innerText = count + " Selected";
+        document.getElementById('selectedCount').innerText = document.querySelectorAll('input[name="selected_ids"]:checked').length + " Selected";
     }
-
     function openEditModal(id, t, u, c, tg) {
         document.getElementById('editForm').action = '/edit/' + id;
-        document.getElementById('editTitle').value = t;
-        document.getElementById('editUrl').value = u;
-        document.getElementById('editCat').value = c;
-        document.getElementById('editTags').value = tg;
+        document.getElementById('editTitle').value = t; document.getElementById('editUrl').value = u;
+        document.getElementById('editCat').value = c; document.getElementById('editTags').value = tg;
         document.getElementById('editModal').style.display = 'block';
     }
-
-    function closeModal() {
-        document.getElementById('editModal').style.display = 'none';
-    }
+    function closeModal() { document.getElementById('editModal').style.display = 'none'; }
 </script>
-
 </body>
 </html>
