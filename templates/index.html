@@ -91,8 +91,12 @@
             <input type="text" name="title" placeholder="Name" required>
             <input type="url" name="url" placeholder="URL" required>
             <input type="text" name="category" placeholder="Category">
+            <!-- Added this missing input to prevent the 'Bad Request' error -->
+            <input type="text" name="tags" placeholder="Tags (comma separated)">
             <button type="submit" class="btn-accent">Add Link</button>
         </form>
+
+
     </div>
 
     {% if top_links %}

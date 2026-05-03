@@ -28,22 +28,21 @@ def index():
     tag_filter = request.args.get('tag', '')
     conn = get_db()
     
-    # Feature 7: Counts
-    total = conn.execute('SELECT COUNT(*) as count FROM bookmarks').fetchone()['count']
+    total_row = conn.execute('SELECT COUNT(*) as count FROM bookmarks').fetchone()
+    total = total_row['count'] if total_row else 0
+    
     categories = conn.execute('''SELECT category, COUNT(*) as count FROM bookmarks 
                                  WHERE category != "" GROUP BY category''').fetchall()
     
-    # Feature 14: Extract all unique tags for the sidebar
     all_tags_raw = conn.execute('SELECT tags FROM bookmarks WHERE tags != ""').fetchall()
     tag_set = set()
     for row in all_tags_raw:
-        for t in row['tags'].split(','):
-            if t.strip(): tag_set.add(t.strip())
+        if row['tags']:
+            for t in row['tags'].split(','):
+                if t.strip(): tag_set.add(t.strip())
     
-    # Feature 8: Top 5 most clicked
     top_links = conn.execute('SELECT * FROM bookmarks ORDER BY clicks DESC LIMIT 5').fetchall()
     
-    # Filtering Logic
     query = 'SELECT * FROM bookmarks WHERE 1=1'
     params = []
     if q:
@@ -71,16 +70,29 @@ def visit(id):
 @app.route('/add', methods=['POST'])
 def add():
     conn = get_db()
-    conn.execute('INSERT INTO bookmarks (title, url, tags, category) VALUES (?, ?, ?, ?)', 
-                 (request.form['title'], request.form['url'], request.form['tags'], request.form.get('category', 'General')))
-    conn.commit(); conn.close()
+    # Fixed: Using .get() prevents 400 Bad Request if field is missing
+    title = request.form.get('title')
+    url = request.form.get('url')
+    tags = request.form.get('tags', '')
+    category = request.form.get('category', 'General')
+    
+    if title and url:
+        conn.execute('INSERT INTO bookmarks (title, url, tags, category) VALUES (?, ?, ?, ?)', 
+                     (title, url, tags, category))
+        conn.commit()
+    conn.close()
     return redirect(url_for('index'))
 
 @app.route('/edit/<int:id>', methods=['POST'])
 def edit(id):
     conn = get_db()
+    title = request.form.get('title')
+    url = request.form.get('url')
+    category = request.form.get('category', 'General')
+    tags = request.form.get('tags', '')
+    
     conn.execute('UPDATE bookmarks SET title=?, url=?, category=?, tags=? WHERE id=?', 
-                 (request.form['title'], request.form['url'], request.form['category'], request.form['tags'], id))
+                 (title, url, category, tags, id))
     conn.commit(); conn.close()
     return redirect(url_for('index'))
 
@@ -121,14 +133,17 @@ def import_file():
                              (link.text or "Untitled", link.get('href'), '', 'Imported'))
             conn.commit(); conn.close()
         else:
-            df = pd.read_csv(file) if filename.endswith('.csv') else pd.read_excel(file)
-            conn = get_db()
-            for _, row in df.iterrows():
-                conn.execute('''INSERT INTO bookmarks (id, title, url, category, tags) VALUES (?,?,?,?,?)
-                                ON CONFLICT(id) DO UPDATE SET 
-                                title=excluded.title, url=excluded.url, category=excluded.category, tags=excluded.tags''',
-                             (row.get('id'), row['title'], row['url'], row.get('category', 'General'), row.get('tags', '')))
-            conn.commit(); conn.close()
+            try:
+                df = pd.read_csv(file) if filename.endswith('.csv') else pd.read_excel(file)
+                conn = get_db()
+                for _, row in df.iterrows():
+                    conn.execute('''INSERT INTO bookmarks (id, title, url, category, tags) VALUES (?,?,?,?,?)
+                                    ON CONFLICT(id) DO UPDATE SET 
+                                    title=excluded.title, url=excluded.url, category=excluded.category, tags=excluded.tags''',
+                                 (row.get('id'), row['title'], row['url'], row.get('category', 'General'), row.get('tags', '')))
+                conn.commit(); conn.close()
+            except Exception:
+                pass
     return redirect(url_for('index'))
 
 @app.route('/clear_all', methods=['POST'])
@@ -142,7 +157,10 @@ def delete(id):
     return redirect(url_for('index'))
 
 @app.route('/backup')
-def backup(): return send_file(DB_PATH, as_attachment=True)
+def backup(): 
+    if os.path.exists(DB_PATH):
+        return send_file(DB_PATH, as_attachment=True)
+    return "No file", 404
 
 if __name__ == '__main__':
     init_db()
