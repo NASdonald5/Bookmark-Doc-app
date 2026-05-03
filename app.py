@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, send_file
 import sqlite3
 import os
 from bs4 import BeautifulSoup
@@ -10,7 +10,7 @@ DB_PATH = '/app/data/bookmarks.db'
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row  # Crucial for the b['url'] syntax in HTML
+    conn.row_factory = sqlite3.Row  
     return conn
 
 def init_db():
@@ -50,7 +50,6 @@ def add():
 def import_bookmarks():
     file = request.files.get('file')
     if file:
-        # Read file and parse with BeautifulSoup
         soup = BeautifulSoup(file.read(), 'html.parser')
         conn = get_db()
         for link in soup.find_all('a'):
@@ -78,7 +77,11 @@ def clear_all():
     conn.close()
     return redirect(url_for('index'))
 
-
+@app.route('/backup')
+def backup():
+    if os.path.exists(DB_PATH):
+        return send_file(DB_PATH, as_attachment=True)
+    return "No database found to backup", 404
 
 # --- START APP ---
 
