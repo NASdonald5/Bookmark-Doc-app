@@ -14,7 +14,8 @@ def get_db():
     return conn
 
 def init_db():
-    if not os.path.exists('/app/data'): os.makedirs('/app/data')
+    if not os.path.exists('/app/data'): 
+        os.makedirs('/app/data')
     conn = get_db()
     conn.execute('''CREATE TABLE IF NOT EXISTS bookmarks 
         (id INTEGER PRIMARY KEY, title TEXT, url TEXT, tags TEXT, 
@@ -89,12 +90,12 @@ def export_data(fmt):
     output = io.BytesIO()
     if fmt == 'csv':
         df.to_csv(output, index=False)
-        mimetype = 'text/csv'
-    else:
+        mimetype, ext = 'text/csv', 'csv'
+    elif fmt == 'excel':
         df.to_excel(output, index=False, engine='openpyxl')
-        mimetype = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        mimetype, ext = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx'
     output.seek(0)
-    return send_file(output, mimetype=mimetype, as_attachment=True, download_name=f'bookmarks_export.{fmt}')
+    return send_file(output, mimetype=mimetype, as_attachment=True, download_name=f'bookmarks_export.{ext}')
 
 @app.route('/import_file', methods=['POST'])
 def import_file():
@@ -130,7 +131,8 @@ def delete(id):
     return redirect(url_for('index'))
 
 @app.route('/backup')
-def backup(): return send_file(DB_PATH, as_attachment=True)
+def backup(): 
+    return send_file(DB_PATH, as_attachment=True)
 
 if __name__ == '__main__':
     init_db()
