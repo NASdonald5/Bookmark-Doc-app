@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head><title>Bookmarks-DOC-APP</title></head>
+<body>
+    <h1>Simple Bookmark Manager</h1>
+    <form action="/add" method="post">
+        <input type="text" name="title" placeholder="Site Name" required>
+        <input type="url" name="url" placeholder="https://..." required>
+        <button type="submit">Save Bookmark</button>
+    </form>
+    <ul>
+        {% for b in bookmarks %}
+            <li><a href="{{ b[2] }}" target="_blank">{{ b[1] }}</a></li>
+        {% endfor %}
+    </ul>
+</body>
+</html>
