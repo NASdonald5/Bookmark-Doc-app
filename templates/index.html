@@ -37,6 +37,11 @@
 
 <div class="sidebar">
     <h2>📁 Library ({{ total }})</h2>
+    <div style="margin-top: 40px; border-top: 1px solid #334155; padding-top: 20px;">
+        <a href="/export/excel" class="cat-item">Export Excel Sheet</a>
+        <a href="/export/csv" class="cat-item">Export CSV Table</a>
+        <a href="/backup" class="cat-item" style="color: #4ade80;">Download .DB Backup</a>
+    </div>
     
     <div style="font-size: 11px; color: #64748b; margin-bottom: 10px; font-weight: bold;">CATEGORIES</div>
     <a href="/" class="cat-item {% if not current_cat and not current_tag %}cat-active{% endif %}">
@@ -55,10 +60,12 @@
         {% endfor %}
     </div>
     
-    <div style="margin-top: 40px; border-top: 1px solid #334155; padding-top: 20px;">
-        <a href="/export/excel" class="cat-item">Export Excel Sheet</a>
-        <a href="/export/csv" class="cat-item">Export CSV Table</a>
-        <a href="/backup" class="cat-item" style="color: #4ade80;">Download .DB Backup</a>
+
+    <div class="add-form" style="margin-top: 50px; border-color: var(--danger);">
+        <h4 style="color:var(--danger); margin:0;">Danger Zone</h4>
+        <form action="/clear_all" method="post" onsubmit="return confirm('ERASE EVERYTHING?')">
+            <button type="submit" style="background:var(--danger); color:white; border:none;">Wipe Entire Database</button>
+        </form>
     </div>
 </div>
 
@@ -129,12 +136,7 @@
         </div>
     </form>
 
-    <div class="add-form" style="margin-top: 50px; border-color: var(--danger);">
-        <h4 style="color:var(--danger); margin:0;">Danger Zone</h4>
-        <form action="/clear_all" method="post" onsubmit="return confirm('ERASE EVERYTHING?')">
-            <button type="submit" style="background:var(--danger); color:white; border:none;">Wipe Entire Database</button>
-        </form>
-    </div>
+
 </div>
 
 <div id="editModal" class="modal">
