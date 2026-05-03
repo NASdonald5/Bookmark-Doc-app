@@ -1,109 +1,97 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Bookmarks-DOC-APP</title>
+    <title>Bookmark Pro</title>
     <style>
         :root {
-            --bg-page: #0a0a0a;
-            --bg-card: #1a1a1a;
-            --text-main: #e0e0e0;
-            --accent: #4a9eff;
-            --danger: #ff4d4d;
-            --success: #28a745;
+            --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; --accent: #38bdf8;
         }
-        body { 
-            background-color: var(--bg-page); 
-            color: var(--text-main);
-            font-family: 'Segoe UI', Tahoma, sans-serif; 
-            max-width: 800px; margin: 40px auto; padding: 20px;
-        }
-        .container-box {
-            background: var(--bg-card);
-            padding: 20px; border-radius: 12px; margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-        }
-        .bookmark-item { 
-            background: var(--bg-card);
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 15px; margin-bottom: 10px; border-radius: 8px;
-            transition: transform 0.2s;
-            border: 1px solid #333;
-        }
-        .bookmark-item:hover { transform: translateY(-2px); border-color: var(--accent); }
-        a { color: var(--accent); text-decoration: none; font-weight: 500; }
-        input, button { 
-            padding: 10px; border-radius: 6px; border: 1px solid #444;
-            background: #252525; color: white; margin-right: 5px;
-        }
-        button { cursor: pointer; background: var(--accent); color: black; font-weight: bold; border: none; }
-        button:hover { opacity: 0.9; }
-        .btn-green { background: var(--success); color: white; display: inline-block; padding: 10px 20px; border-radius: 6px; font-weight: bold; }
-        .delete-btn { color: var(--danger); font-size: 0.85em; }
-        img.favicon { width: 20px; height: 20px; margin-right: 15px; border-radius: 3px; background: white; padding: 2px; }
-        .search-row { display: flex; gap: 10px; margin-bottom: 20px; }
+        body { background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; display: flex; margin: 0; min-height: 100vh; }
+        
+        /* Sidebar */
+        .sidebar { width: 250px; background: #1e293b; padding: 20px; border-right: 1px solid #334155; }
+        .main-content { flex: 1; padding: 30px; }
+
+        /* View Controls */
+        .controls { display: flex; justify-content: space-between; margin-bottom: 20px; }
+        .view-btn { background: #334155; border: none; color: white; padding: 8px 12px; cursor: pointer; border-radius: 6px; }
+        .view-btn.active { background: var(--accent); color: #000; }
+
+        /* Grid System */
+        .bookmark-grid { display: grid; gap: 20px; }
+        .grid-view { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+        .list-view { grid-template-columns: 1fr; }
+
+        /* Card Styling */
+        .card { background: var(--card); border-radius: 12px; padding: 15px; border: 1px solid #334155; transition: 0.2s; position: relative; }
+        .card:hover { border-color: var(--accent); transform: translateY(-3px); }
+        .card img { width: 32px; height: 32px; border-radius: 6px; margin-bottom: 10px; }
+        
+        /* Tag Styling */
+        .tag { background: #0ea5e9; color: white; font-size: 10px; padding: 2px 8px; border-radius: 10px; margin-right: 5px; }
+        
+        input, button { background: #334155; border: 1px solid #475569; color: white; padding: 10px; border-radius: 8px; }
+        .add-form { display: grid; gap: 10px; margin-bottom: 30px; }
     </style>
 </head>
 <body>
-    <h1>🔖 Bookmark Manager</h1>
 
-    <!-- Search Section -->
-    <div class="container-box">
-        <form action="/" method="get" class="search-row">
-            <input type="text" name="q" placeholder="Search saved links..." value="{{ search_query or '' }}" style="flex-grow: 1;">
-            <button type="submit">Search</button>
-            {% if search_query %}<a href="/" style="padding-top: 10px;">Clear</a>{% endif %}
-        </form>
-    </div>
+<div class="sidebar">
+    <h2>📁 Categories</h2>
+    <p style="font-size: 14px; color: #94a3b8;">Click search to filter by tag</p>
+    <!-- You can dynamically list tags here in the next step -->
+</div>
 
-    <!-- Add Section -->
-    <div class="container-box">
-        <h3>Add New</h3>
-        <form action="/add" method="post" style="display: flex; gap: 5px;">
-            <input type="text" name="title" placeholder="Site Name" required style="flex: 1;">
-            <input type="url" name="url" placeholder="https://..." required style="flex: 2;">
-            <button type="submit">Save</button>
-        </form>
-    </div>
-
-    <!-- List Section -->
-    <h3>Your Saved Links</h3>
-    <div>
-        {% for b in bookmarks %}
-            <div class="bookmark-item">
-                <div style="display: flex; align-items: center;">
-                    <!-- Corrected Favicon URL -->
-                    <img src="https://google.com{{ b['url'] }}" 
-                         class="favicon" alt="icon">
-                    
-                    <a href="{{ b['url'] }}" target="_blank"><strong>{{ b['title'] }}</strong></a>
-                </div>
-                <a href="{{ url_for('delete', id=b['id']) }}" class="delete-btn" onclick="return confirm('Delete this bookmark?')">Delete</a>
-            </div>
-        {% else %}
-            <p style="text-align: center; color: #888;">No bookmarks found.</p>
-        {% endfor %}
-    </div>
-
-    <!-- Data Management Section -->
-    <div class="container-box" style="margin-top: 50px; border-top: 2px solid #333;">
-        <h3>Settings & Backup</h3>
-        <div style="display: flex; flex-wrap: wrap; gap: 15px; align-items: center;">
-            
-            <!-- Import -->
-            <form action="/import" method="post" enctype="multipart/form-data" style="border-right: 1px solid #444; padding-right: 15px;">
-                <input type="file" name="file" accept=".html" required>
-                <button type="submit" style="background: #555;">Import HTML</button>
-            </form>
-
-            <!-- Backup -->
-            <a href="/backup" class="btn-green">Download .DB Backup</a>
-
-            <!-- Clear All -->
-            <form action="/clear_all" method="post" onsubmit="return confirm('Delete everything?');">
-                <button type="submit" style="background: var(--danger); color: white;">Clear All</button>
-            </form>
+<div class="main-content">
+    <div class="controls">
+        <h1>My Library</h1>
+        <div>
+            <button class="view-btn active" onclick="setView('grid')">Large Icons</button>
+            <button class="view-btn" onclick="setView('list')">Details List</button>
         </div>
     </div>
 
+    <!-- Add Form -->
+    <form class="add-form container-box" action="/add" method="post">
+        <input type="text" name="title" placeholder="Name" required>
+        <input type="url" name="url" placeholder="URL (https://...)" required>
+        <input type="text" name="tags" placeholder="Tags (e.g. Work, News, Social)">
+        <button type="submit" style="background: var(--accent); color: black; font-weight: bold;">Add Bookmark</button>
+    </form>
+
+    <!-- Content -->
+    <div id="wrapper" class="bookmark-grid grid-view">
+        {% for b in bookmarks %}
+        <div class="card">
+            <img src="https://google.com{{ b['url'] }}" alt="">
+            <div>
+                <a href="{{ b['url'] }}" target="_blank" style="display:block; font-weight: bold; margin-bottom: 5px;">{{ b['title'] }}</a>
+                <div style="margin-top: 8px;">
+                    {% for tag in b['tags'].split(',') %}
+                        {% if tag %}<span class="tag">{{ tag.strip() }}</span>{% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            <a href="{{ url_for('delete', id=b['id']) }}" style="color: var(--danger); font-size: 12px; position: absolute; top: 10px; right: 10px;">×</a>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+    function setView(mode) {
+        const wrapper = document.getElementById('wrapper');
+        const buttons = document.querySelectorAll('.view-btn');
+        buttons.forEach(b => b.classList.remove('active'));
+        
+        if(mode === 'grid') {
+            wrapper.className = 'bookmark-grid grid-view';
+            event.target.classList.add('active');
+        } else {
+            wrapper.className = 'bookmark-grid list-view';
+            event.target.classList.add('active');
+        }
+    }
+</script>
 </body>
 </html>

@@ -12,13 +12,15 @@ def get_db():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row  
     return conn
-
+# init_db function in app.py
 def init_db():
     if not os.path.exists('/app/data'):
         os.makedirs('/app/data')
     conn = get_db()
-    conn.execute('CREATE TABLE IF NOT EXISTS bookmarks (id INTEGER PRIMARY KEY, title TEXT, url TEXT)')
+    # Added 'tags' column
+    conn.execute('CREATE TABLE IF NOT EXISTS bookmarks (id INTEGER PRIMARY KEY, title TEXT, url TEXT, tags TEXT)')
     conn.close()
+
 
 # --- ROUTES ---
 
@@ -36,12 +38,15 @@ def index():
     conn.close()
     return render_template('index.html', bookmarks=bookmarks, search_query=search_query)
 
+# Updated the /add route to accept tags
 @app.route('/add', methods=['POST'])
 def add():
-    title, url = request.form.get('title'), request.form.get('url')
+    title = request.form.get('title')
+    url = request.form.get('url')
+    tags = request.form.get('tags', '') # Get tags from form
     if title and url:
         conn = get_db()
-        conn.execute('INSERT INTO bookmarks (title, url) VALUES (?, ?)', (title, url))
+        conn.execute('INSERT INTO bookmarks (title, url, tags) VALUES (?, ?, ?)', (title, url, tags))
         conn.commit()
         conn.close()
     return redirect(url_for('index'))
