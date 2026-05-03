@@ -70,6 +70,16 @@ def delete(id):
     conn.close()
     return redirect(url_for('index'))
 
+@app.route('/clear_all', methods=['POST'])
+def clear_all():
+    conn = get_db()
+    conn.execute('DELETE FROM bookmarks')
+    conn.commit()
+    conn.close()
+    return redirect(url_for('index'))
+
+
+
 # --- START APP ---
 
 if __name__ == '__main__':

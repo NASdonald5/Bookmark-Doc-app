@@ -80,6 +80,13 @@
             <p style="text-align: center; color: #888;">No bookmarks found. Try adding one!</p>
         {% endfor %}
     </div>
+<!-- Danger Zone -->
+<div class="container-box" style="border: 1px solid var(--danger); opacity: 0.8;">
+    <h3 style="color: var(--danger); margin-top: 0;">Danger Zone</h3>
+    <form action="/clear_all" method="post" onsubmit="return confirm('Are you absolutely sure? This will delete ALL bookmarks forever.');">
+        <button type="submit" style="background: var(--danger); color: white;">Clear All Bookmarks</button>
+    </form>
+</div>
 
 </body>
 </html>
