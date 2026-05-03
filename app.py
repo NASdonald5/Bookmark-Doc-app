@@ -14,8 +14,7 @@ def get_db():
     return conn
 
 def init_db():
-    if not os.path.exists('/app/data'): 
-        os.makedirs('/app/data')
+    if not os.path.exists('/app/data'): os.makedirs('/app/data')
     conn = get_db()
     conn.execute('''CREATE TABLE IF NOT EXISTS bookmarks 
         (id INTEGER PRIMARY KEY, title TEXT, url TEXT, tags TEXT, 
@@ -26,26 +25,40 @@ def init_db():
 def index():
     q = request.args.get('q', '')
     cat_filter = request.args.get('category', '')
+    tag_filter = request.args.get('tag', '')
     conn = get_db()
     
+    # Feature 7: Counts
     total = conn.execute('SELECT COUNT(*) as count FROM bookmarks').fetchone()['count']
     categories = conn.execute('''SELECT category, COUNT(*) as count FROM bookmarks 
                                  WHERE category != "" GROUP BY category''').fetchall()
+    
+    # Feature 14: Extract all unique tags for the sidebar
+    all_tags_raw = conn.execute('SELECT tags FROM bookmarks WHERE tags != ""').fetchall()
+    tag_set = set()
+    for row in all_tags_raw:
+        for t in row['tags'].split(','):
+            if t.strip(): tag_set.add(t.strip())
+    
+    # Feature 8: Top 5 most clicked
     top_links = conn.execute('SELECT * FROM bookmarks ORDER BY clicks DESC LIMIT 5').fetchall()
     
+    # Filtering Logic
     query = 'SELECT * FROM bookmarks WHERE 1=1'
     params = []
     if q:
         query += ' AND (title LIKE ? OR url LIKE ? OR tags LIKE ?)'
         params.extend([f'%{q}%', f'%{q}%', f'%{q}%'])
     if cat_filter:
-        query += ' AND category = ?'
-        params.append(cat_filter)
+        query += ' AND category = ?'; params.append(cat_filter)
+    if tag_filter:
+        query += ' AND tags LIKE ?'; params.append(f'%{tag_filter}%')
         
     bookmarks = conn.execute(query, params).fetchall()
     conn.close()
     return render_template('index.html', bookmarks=bookmarks, categories=categories, 
-                           total=total, search_query=q, current_cat=cat_filter, top_links=top_links)
+                           tags=sorted(list(tag_set)), total=total, search_query=q, 
+                           current_cat=cat_filter, current_tag=tag_filter, top_links=top_links)
 
 @app.route('/visit/<int:id>')
 def visit(id):
@@ -89,11 +102,9 @@ def export_data(fmt):
     conn.close()
     output = io.BytesIO()
     if fmt == 'csv':
-        df.to_csv(output, index=False)
-        mimetype, ext = 'text/csv', 'csv'
+        df.to_csv(output, index=False); mimetype, ext = 'text/csv', 'csv'
     elif fmt == 'excel':
-        df.to_excel(output, index=False, engine='openpyxl')
-        mimetype, ext = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx'
+        df.to_excel(output, index=False, engine='openpyxl'); mimetype, ext = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'xlsx'
     output.seek(0)
     return send_file(output, mimetype=mimetype, as_attachment=True, download_name=f'bookmarks_export.{ext}')
 
@@ -131,8 +142,7 @@ def delete(id):
     return redirect(url_for('index'))
 
 @app.route('/backup')
-def backup(): 
-    return send_file(DB_PATH, as_attachment=True)
+def backup(): return send_file(DB_PATH, as_attachment=True)
 
 if __name__ == '__main__':
     init_db()
