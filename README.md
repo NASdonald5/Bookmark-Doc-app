@@ -3,7 +3,7 @@ A simple Book Mark Manger
 
 #!/bin/bash
 #sudo nano install-Bookmarkapp.sh
-# Then copy the contents and run the script.
+# Then copy the contents of this file and run the script.
 # sudo ./install-Bookmarkapp.sh
 sudo chmod +x install-Bookmarkapp.sh
 #remove previous versions if any.
