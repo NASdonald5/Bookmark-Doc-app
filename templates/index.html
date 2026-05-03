@@ -1,60 +1,85 @@
 <!DOCTYPE html>
 <html>
-<head><title>Bookmarks-DOC-APP</title>
+<head>
+    <title>Bookmarks-DOC-APP</title>
     <style>
-    :root {
-        --bg-page: #0a0a0a;    /* Near black */
-        --bg-card: #1a1a1a;    /* Lighter card background */
-        --text-main: #e0e0e0;  /* Soft white text */
-        --accent: #4a9eff;     /* Blue accent */
-        --danger: #ff4d4d;
-    }
-    body { 
-        background-color: var(--bg-page); 
-        color: var(--text-main);
-        font-family: 'Segoe UI', Tahoma, sans-serif; 
-        max-width: 800px; margin: 40px auto; padding: 20px;
-    }
-    .search-container, .add-container, .import-container {
-        background: var(--bg-card);
-        padding: 20px; border-radius: 12px; margin-bottom: 20px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    }
-    .bookmark-item { 
-        background: var(--bg-card);
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 15px; margin-bottom: 10px; border-radius: 8px;
-        transition: transform 0.2s;
-    }
-    .bookmark-item:hover { transform: translateY(-2px); }
-    a { color: var(--accent); text-decoration: none; font-weight: 500; }
-    input, button { 
-        padding: 10px; border-radius: 6px; border: 1px solid #333;
-        background: #252525; color: white; margin-right: 5px;
-    }
-    .delete-btn { color: var(--danger); font-size: 0.85em; }
-</style>
-
+        :root {
+            --bg-page: #0a0a0a;
+            --bg-card: #1a1a1a;
+            --text-main: #e0e0e0;
+            --accent: #4a9eff;
+            --danger: #ff4d4d;
+        }
+        body { 
+            background-color: var(--bg-page); 
+            color: var(--text-main);
+            font-family: 'Segoe UI', Tahoma, sans-serif; 
+            max-width: 800px; margin: 40px auto; padding: 20px;
+        }
+        .container-box {
+            background: var(--bg-card);
+            padding: 20px; border-radius: 12px; margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .bookmark-item { 
+            background: var(--bg-card);
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 15px; margin-bottom: 10px; border-radius: 8px;
+            transition: transform 0.2s;
+            border: 1px solid #333;
+        }
+        .bookmark-item:hover { transform: translateY(-2px); border-color: var(--accent); }
+        a { color: var(--accent); text-decoration: none; font-weight: 500; }
+        input, button { 
+            padding: 10px; border-radius: 6px; border: 1px solid #444;
+            background: #252525; color: white; margin-right: 5px;
+        }
+        button { cursor: pointer; background: var(--accent); color: black; font-weight: bold; border: none; }
+        button:hover { opacity: 0.9; }
+        .delete-btn { color: var(--danger); font-size: 0.85em; }
+        img.favicon { width: 20px; height: 20px; margin-right: 15px; border-radius: 3px; background: white; padding: 2px; }
+    </style>
 </head>
 <body>
-    <h1>Simple Bookmark Manager</h1>
-    <form action="/add" method="post">
-        <input type="text" name="title" placeholder="Site Name" required>
-        <input type="url" name="url" placeholder="https://..." required>
-        <button type="submit">Save Bookmark</button>
-    </form>
-    <ul>
+    <h1>🔖 Bookmark Manager</h1>
+
+    <!-- Add Section -->
+    <div class="container-box">
+        <h3>Add New</h3>
+        <form action="/add" method="post">
+            <input type="text" name="title" placeholder="Site Name" required>
+            <input type="url" name="url" placeholder="https://..." required>
+            <button type="submit">Save</button>
+        </form>
+    </div>
+
+    <!-- Import Section -->
+    <div class="container-box">
+        <h3>Import Browser Bookmarks</h3>
+        <form action="/import" method="post" enctype="multipart/form-data">
+            <input type="file" name="file" accept=".html" required>
+            <button type="submit" style="background: #555;">Upload HTML</button>
+        </form>
+    </div>
+
+    <!-- List Section -->
+    <h3>Your Saved Links</h3>
+    <div>
         {% for b in bookmarks %}
-            <li><a href="{{ b[2] }}" target="_blank">{{ b[1] }}</a></li>
+            <div class="bookmark-item">
+                <div style="display: flex; align-items: center;">
+                    <!-- Fixed Favicon URL -->
+                    <img src="https://google.com{{ b['url'] }}" 
+                         class="favicon" alt="icon">
+                    
+                    <a href="{{ b['url'] }}" target="_blank"><strong>{{ b['title'] }}</strong></a>
+                </div>
+                <a href="{{ url_for('delete', id=b['id']) }}" class="delete-btn" onclick="return confirm('Delete this bookmark?')">Delete</a>
+            </div>
+        {% else %}
+            <p style="text-align: center; color: #888;">No bookmarks found. Try adding one!</p>
         {% endfor %}
-    </ul>
-    <div class="import-container">
-    <h3>Import from Browser</h3>
-    <form action="/import" method="post" enctype="multipart/form-data">
-        <input type="file" name="file" accept=".html" required>
-        <button type="submit">Upload HTML File</button>
-    </form>
-</div>
+    </div>
 
 </body>
 </html>
