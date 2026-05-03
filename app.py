@@ -1,6 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, send_file
 import sqlite3
 import os
+import pandas as pd
+import io
 from bs4 import BeautifulSoup
 
 app = Flask(__name__)
@@ -12,8 +14,7 @@ def get_db():
     return conn
 
 def init_db():
-    if not os.path.exists('/app/data'):
-        os.makedirs('/app/data')
+    if not os.path.exists('/app/data'): os.makedirs('/app/data')
     conn = get_db()
     conn.execute('''CREATE TABLE IF NOT EXISTS bookmarks 
         (id INTEGER PRIMARY KEY, title TEXT, url TEXT, tags TEXT, 
@@ -25,13 +26,9 @@ def index():
     q = request.args.get('q', '')
     cat_filter = request.args.get('category', '')
     conn = get_db()
-    
-    # Feature 7: Counts
-    total = conn.execute('SELECT COUNT(*) FROM bookmarks').fetchone()[0]
+    total = conn.execute('SELECT COUNT(*) as count FROM bookmarks').fetchone()['count']
     categories = conn.execute('''SELECT category, COUNT(*) as count FROM bookmarks 
                                  WHERE category != "" GROUP BY category''').fetchall()
-    
-    # Feature 8: Top Clicked
     top_links = conn.execute('SELECT * FROM bookmarks ORDER BY clicks DESC LIMIT 5').fetchall()
     
     query = 'SELECT * FROM bookmarks WHERE 1=1'
@@ -53,21 +50,53 @@ def visit(id):
     conn = get_db()
     conn.execute('UPDATE bookmarks SET clicks = clicks + 1 WHERE id = ?', (id,))
     url = conn.execute('SELECT url FROM bookmarks WHERE id = ?', (id,)).fetchone()['url']
-    conn.commit()
-    conn.close()
+    conn.commit(); conn.close()
     return redirect(url)
 
 @app.route('/add', methods=['POST'])
 def add():
-    title, url = request.form.get('title'), request.form.get('url')
-    cat, tags = request.form.get('category', 'General'), request.form.get('tags', '')
-    if title and url:
-        conn = get_db()
-        conn.execute('INSERT INTO bookmarks (title, url, tags, category) VALUES (?, ?, ?, ?)', 
-                     (title, url, tags, cat))
-        conn.commit()
-        conn.close()
+    conn = get_db()
+    conn.execute('INSERT INTO bookmarks (title, url, tags, category) VALUES (?, ?, ?, ?)', 
+                 (request.form['title'], request.form['url'], request.form['tags'], request.form.get('category', 'General')))
+    conn.commit(); conn.close()
     return redirect(url_for('index'))
+
+@app.route('/export_csv')
+def export_csv():
+    conn = get_db()
+    df = pd.read_sql_query("SELECT id, title, url, category, tags FROM bookmarks", conn)
+    conn.close()
+    output = io.BytesIO()
+    df.to_csv(output, index=False)
+    output.seek(0)
+    return send_file(output, mimetype='text/csv', as_attachment=True, download_name='bookmarks_export.csv')
+
+@app.route('/import_csv', methods=['POST'])
+def import_csv():
+    file = request.files.get('file')
+    if file:
+        df = pd.read_csv(file)
+        conn = get_db()
+        for _, row in df.iterrows():
+            # Update existing if ID exists, otherwise insert
+            conn.execute('''INSERT INTO bookmarks (id, title, url, category, tags) VALUES (?,?,?,?,?)
+                            ON CONFLICT(id) DO UPDATE SET 
+                            title=excluded.title, url=excluded.url, category=excluded.category, tags=excluded.tags''',
+                         (row.get('id'), row['title'], row['url'], row.get('category', 'General'), row.get('tags', '')))
+        conn.commit(); conn.close()
+    return redirect(url_for('index'))
+
+@app.route('/clear_all', methods=['POST'])
+def clear_all():
+    conn = get_db(); conn.execute('DELETE FROM bookmarks'); conn.commit(); conn.close()
+    return redirect(url_for('index'))
+
+@app.route('/backup')
+def backup(): return send_file(DB_PATH, as_attachment=True)
+
+# ... Include previous /edit, /delete, /bulk_update, and /import (HTML) routes ...
+
+
 
 @app.route('/edit/<int:id>', methods=['POST'])
 def edit(id):
