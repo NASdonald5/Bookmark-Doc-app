@@ -2,3 +2,4 @@ streamlit
 flask
 sqlite3
 os
+beautifulsoup4
