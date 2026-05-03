@@ -1,6 +1,41 @@
 <!DOCTYPE html>
 <html>
-<head><title>Bookmarks-DOC-APP</title></head>
+<head><title>Bookmarks-DOC-APP</title>
+    <style>
+    :root {
+        --bg-page: #0a0a0a;    /* Near black */
+        --bg-card: #1a1a1a;    /* Lighter card background */
+        --text-main: #e0e0e0;  /* Soft white text */
+        --accent: #4a9eff;     /* Blue accent */
+        --danger: #ff4d4d;
+    }
+    body { 
+        background-color: var(--bg-page); 
+        color: var(--text-main);
+        font-family: 'Segoe UI', Tahoma, sans-serif; 
+        max-width: 800px; margin: 40px auto; padding: 20px;
+    }
+    .search-container, .add-container, .import-container {
+        background: var(--bg-card);
+        padding: 20px; border-radius: 12px; margin-bottom: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+    .bookmark-item { 
+        background: var(--bg-card);
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 15px; margin-bottom: 10px; border-radius: 8px;
+        transition: transform 0.2s;
+    }
+    .bookmark-item:hover { transform: translateY(-2px); }
+    a { color: var(--accent); text-decoration: none; font-weight: 500; }
+    input, button { 
+        padding: 10px; border-radius: 6px; border: 1px solid #333;
+        background: #252525; color: white; margin-right: 5px;
+    }
+    .delete-btn { color: var(--danger); font-size: 0.85em; }
+</style>
+
+</head>
 <body>
     <h1>Simple Bookmark Manager</h1>
     <form action="/add" method="post">
@@ -13,5 +48,13 @@
             <li><a href="{{ b[2] }}" target="_blank">{{ b[1] }}</a></li>
         {% endfor %}
     </ul>
+    <div class="import-container">
+    <h3>Import from Browser</h3>
+    <form action="/import" method="post" enctype="multipart/form-data">
+        <input type="file" name="file" accept=".html" required>
+        <button type="submit">Upload HTML File</button>
+    </form>
+</div>
+
 </body>
 </html>
