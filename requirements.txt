@@ -1,4 +1,4 @@
-streamlit
 flask
-os
+pandas
+openpyxl
 beautifulsoup4
