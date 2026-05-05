@@ -1,117 +1,127 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title>Bookmark Pro</title>
     <style>
-        :root { --bg: #0f172a; --sidebar: #1e293b; --card: #1e293b; --accent: #38bdf8; --danger: #ef4444; --warning: #f59e0b; }
-        body { background: var(--bg); color: #f1f5f9; font-family: system-ui, sans-serif; display: flex; margin: 0; min-height: 100vh; }
-        .sidebar { width: 280px; background: var(--sidebar); padding: 25px; border-right: 1px solid #334155; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
-        .cat-item { display: flex; justify-content: space-between; padding: 10px; color: #94a3b8; text-decoration: none; border-radius: 8px; margin-bottom: 5px; font-size: 14px; }
-        .cat-active { background: #334155; color: var(--accent); font-weight: bold; }
-        .badge { background: #0f172a; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
-        .main-content { flex: 1; padding: 30px; max-width: 1400px; }
-        .panel { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; }
-        input, select, button { background: #0f172a; border: 1px solid #475569; color: white; padding: 8px; border-radius: 6px; }
-        .wrapper { display: grid; gap: 12px; }
-        .grid-view { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
-        .small-view { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
-        .list-view { grid-template-columns: 1fr; }
-        .card { background: var(--card); padding: 12px; border-radius: 8px; border: 1px solid #334155; position: relative; transition: 0.2s; }
-        .card:hover { border-color: var(--accent); transform: translateY(-2px); }
-        .card.dead { border-left: 4px solid var(--danger); }
-        .tag-pill { background: #334155; color: var(--accent); font-size: 10px; padding: 2px 6px; border-radius: 4px; text-decoration: none; margin: 2px; display: inline-block; }
-        .btn-accent { background: var(--accent); color: #000; font-weight: bold; border: none; cursor: pointer; }
-        .bulk-drawer { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--accent); color: #000; padding: 12px 25px; border-radius: 30px; display: none; gap: 15px; z-index: 1000; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        :root { --bg: #0f172a; --panel: #1e293b; --accent: #38bdf8; --danger: #ef4444; }
+        body { background: var(--bg); color: #f1f5f9; font-family: sans-serif; display: flex; margin: 0; }
+        .sidebar { width: 260px; background: #111827; height: 100vh; padding: 20px; position: sticky; top: 0; border-right: 1px solid #334155; overflow-y: auto; }
+        .main { flex: 1; padding: 30px; }
+        .stats-bar { display: flex; justify-content: space-between; margin-bottom: 20px; background: var(--panel); padding: 15px; border-radius: 10px; }
+        
+        .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+        .view-icons .card { text-align: center; height: 100px; }
+        .view-list { grid-template-columns: 1fr !important; }
+        
+        .card { background: var(--panel); padding: 15px; border-radius: 8px; border: 1px solid #334155; position: relative; transition: 0.2s; cursor: pointer; }
+        .card:hover { border-color: var(--accent); resize: both; overflow: auto; }
+        .card.dead { border-color: var(--danger); opacity: 0.7; }
+        
+        .tag { background: #334155; color: var(--accent); font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-right: 4px; }
+        .btn { padding: 8px 12px; border-radius: 6px; border: none; cursor: pointer; font-weight: bold; }
+        .btn-blue { background: var(--accent); color: #000; }
+        .btn-danger { background: var(--danger); color: #fff; width: 100%; }
+        
+        .danger-zone { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ef444444; }
+        .bulk-bar { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--accent); color: black; padding: 15px; border-radius: 50px; display: none; gap: 10px; align-items: center; z-index: 100; }
     </style>
 </head>
 <body>
+
 <div class="sidebar">
     <h2 style="color:var(--accent)">Bookmark Pro</h2>
-    <p style="font-size:12px; opacity:0.6">Total: {{ total }}</p>
-    <div style="margin: 20px 0; display: grid; gap: 8px;">
-        <a href="/backup" class="cat-item" style="color:#4ade80">💾 Backup (.DB)</a>
-        <a href="/export/excel" class="cat-item">📊 Export Excel</a>
-        <a href="/health_check" class="cat-item" style="color:var(--warning)">🔍 Check Dead Links</a>
+    <div style="margin-bottom: 20px;">
+        <a href="/backup" class="btn btn-blue" style="display:block; text-align:center; text-decoration:none;">💾 Download Backup</a>
     </div>
-    <div style="font-size: 11px; font-weight: bold; margin-bottom: 10px; color:#64748b">TIME MACHINE</div>
-    <form action="/" method="get" style="display:flex; gap:5px; margin-bottom:20px;">
-        <select name="month" style="font-size:11px">
-            {% for m in range(1,13) %}<option value="{{ '%02d' % m }}">{{ m }}</option>{% endfor %}
-        </select>
-        <input type="number" name="year" placeholder="2026" style="width:50px; font-size:11px">
-        <button type="submit" style="padding:2px 5px">Go</button>
-    </form>
-    <div style="font-size: 11px; font-weight: bold; margin-bottom: 10px; color:#64748b">CATEGORIES</div>
-    <a href="/" class="cat-item {% if not current_cat %}cat-active{% endif %}">All Items <span class="badge">{{ total }}</span></a>
+
+    <p style="font-size:12px; color:#94a3b8">CATEGORIES</p>
     {% for cat, count in categories %}
-    <a href="/?category={{ cat }}" class="cat-item {% if current_cat == cat %}cat-active{% endif %}">
-        {{ cat or 'General' }} <span class="badge">{{ count }}</span>
+    <a href="/?category={{cat}}" style="display:flex; justify-content:space-between; color:#cbd5e1; text-decoration:none; margin-bottom:8px; font-size:14px;">
+        <span>{{cat or 'General'}}</span> <b class="tag">{{count}}</b>
     </a>
     {% endfor %}
-    <div style="font-size: 11px; font-weight: bold; margin: 20px 0 10px; color:#64748b">TAGS</div>
-    {% for t in tags %}<a href="/?tag={{ t }}" class="tag-pill">{{ t }}</a>{% endfor %}
-    <form action="/clear_all" method="post" style="margin-top: 50px;" onsubmit="return confirm('ERASE EVERYTHING?')">
-        <button type="submit" style="background:var(--danger); width:100%; border:none; padding:10px; color:white; border-radius:6px; cursor:pointer">Wipe Database</button>
-    </form>
+
+    <p style="font-size:12px; color:#94a3b8; margin-top:20px;">TAGS</p>
+    {% for t in tags %}
+    <a href="/?tag={{t}}" class="tag" style="display:inline-block; margin-bottom:5px;">{{t}}</a>
+    {% endfor %}
+
+    <div class="danger-zone">
+        <p style="color:var(--danger); font-size:11px; font-weight:bold;">DANGER ZONE</p>
+        <form action="/danger/clear" method="POST" onsubmit="return confirm('WIPE EVERYTHING?')">
+            <button type="submit" class="btn btn-danger">Clear Entire DB</button>
+        </form>
+    </div>
 </div>
 
-<div class="main-content">
-    <div class="panel" style="display:flex; gap:10px;">
-        <form style="flex:1; display:flex; gap:10px;">
-            <input type="text" name="q" placeholder="Full-text search..." value="{{ search_query }}" style="flex:1;">
-            <select name="sort" onchange="this.form.submit()">
-                <option value="newest">Newest</option>
-                <option value="clicks">Popular</option>
-            </select>
-            <button type="submit" class="btn-accent">Search</button>
-        </form>
-        <button onclick="setView('grid-view')">Grid</button>
-        <button onclick="setView('small-view')">Icons</button>
-        <button onclick="toggleBulk()" style="background:#475569">Bulk</button>
-    </div>
-    <div class="panel" style="display: flex; gap: 15px; align-items: center;">
-        <form action="/add" method="post" style="display:flex; gap:8px; flex:2;">
-            <input type="text" name="title" placeholder="Title" style="flex:1">
-            <input type="url" name="url" placeholder="URL" required style="flex:2">
-            <input type="text" name="category" placeholder="Category" style="width:80px">
-            <input type="text" name="tags" placeholder="Tags" style="width:80px">
-            <button type="submit" class="btn-accent">Add</button>
-        </form>
-        <form action="/import_file" method="post" enctype="multipart/form-data" style="border-left:1px solid #334155; padding-left:15px;">
-            <label style="font-size:12px; cursor:pointer">📤 Import <input type="file" name="file" hidden onchange="this.form.submit()"></label>
-        </form>
-    </div>
-    <form id="bulkForm" action="/bulk_update" method="post">
-        <div id="bulkDrawer" class="bulk-drawer">
-            <span id="selectedCount" style="font-weight:bold">0 Selected</span>
-            <input type="text" name="new_category" placeholder="Move to..." style="background:white; color:black">
-            <button type="submit" style="background:black; color:white">Move</button>
+<div class="main">
+    <div class="stats-bar">
+        <div>Total Bookmarks: <b>{{total}}</b></div>
+        {% if top %}<div>🔥 Most Popular: <a href="/visit/{{top.id}}" style="color:var(--accent)">{{top.title}}</a></div>{% endif %}
+        <div>
+            <button onclick="document.getElementById('grid').className='grid view-list'">List</button>
+            <button onclick="document.getElementById('grid').className='grid'">Grid</button>
+            <button onclick="document.getElementById('grid').className='grid view-icons'">Icons</button>
         </div>
-        <div id="wrapper" class="wrapper grid-view">
+    </div>
+
+    <div class="panel" style="background:var(--panel); padding:20px; border-radius:10px; margin-bottom:20px;">
+        <form action="/add" method="POST" style="display:flex; gap:10px;">
+            <input type="text" name="url" placeholder="URL" required style="flex:2">
+            <input type="text" name="title" placeholder="Title (Optional)" style="flex:1">
+            <input type="text" name="category" placeholder="Category" style="width:100px">
+            <input type="text" name="tags" placeholder="Tags (comma separated)" style="width:100px">
+            <button type="submit" class="btn btn-blue">Add</button>
+        </form>
+        <hr style="border:0; border-top:1px solid #334155; margin:15px 0;">
+        <div style="display:flex; justify-content:space-between;">
+            <form action="/import_file" method="POST" enctype="multipart/form-data">
+                <input type="file" name="file" onchange="this.form.submit()" style="font-size:12px">
+            </form>
+            <div>
+                <a href="/export/excel" style="color:var(--accent); font-size:12px; margin-right:10px;">Export Excel</a>
+                <a href="/export/csv" style="color:var(--accent); font-size:12px;">Export CSV</a>
+            </div>
+        </div>
+    </div>
+
+    <form action="/" method="GET" style="margin-bottom:20px;">
+        <input type="text" name="q" placeholder="Search title or content..." style="width:80%; padding:10px;">
+        <select name="sort" onchange="this.form.submit()">
+            <option value="newest">Newest</option>
+            <option value="clicks">Popular</option>
+        </select>
+    </form>
+
+    <form id="bulkForm" action="/bulk_edit" method="POST">
+        <div id="bulkBar" class="bulk-bar">
+            <span id="count">0 selected</span>
+            <input type="text" name="new_cat" placeholder="New Category">
+            <input type="text" name="new_tag" placeholder="Add Tag">
+            <button type="submit" class="btn btn-blue">Apply to Selected</button>
+        </div>
+
+        <div id="grid" class="grid">
             {% for b in bookmarks %}
             <div class="card {% if b.is_dead %}dead{% endif %}">
-                <input type="checkbox" name="selected_ids" value="{{ b.id }}" class="bulk-ui" style="display:none; position:absolute; top:5px; left:5px;" onchange="updateCount()">
-                <div style="font-size:9px; color:var(--accent); font-weight:800; margin-bottom:4px;">{{ b.category or 'General' }}</div>
-                <a href="/visit/{{ b.id }}" target="_blank" style="color:white; text-decoration:none; font-weight:bold; font-size:14px; display:block;">{{ b.title }}</a>
-                <div style="margin-top:5px;">{% for t in b.tags.split(',') %}{% if t %}<span class="tag-pill">{{ t.strip() }}</span>{% endif %}{% endfor %}</div>
-                <a href="/delete/{{ b.id }}" style="position:absolute; top:5px; right:8px; color:var(--danger); text-decoration:none;" onclick="return confirm('Delete?')">×</a>
+                <input type="checkbox" name="selected_ids" value="{{b.id}}" onchange="updateBulk()" style="position:absolute; top:5px; left:5px;">
+                <div style="font-size:10px; color:var(--accent); margin-bottom:5px;">{{b.category}}</div>
+                <a href="/visit/{{b.id}}" target="_blank" style="color:white; text-decoration:none; font-weight:bold; font-size:14px; display:block;">{{b.title}}</a>
+                <div style="margin-top:8px;">
+                    {% for t in b.tags.split(',') %}{% if t %}<span class="tag">{{t}}</span>{% endif %}{% endfor %}
+                </div>
+                <a href="/delete/{{b.id}}" style="position:absolute; top:5px; right:10px; color:var(--danger); text-decoration:none;">×</a>
             </div>
             {% endfor %}
         </div>
     </form>
 </div>
+
 <script>
-    function setView(v) { document.getElementById('wrapper').className = 'wrapper ' + v; }
-    function toggleBulk() {
-        const ui = document.querySelectorAll('.bulk-ui');
-        const dr = document.getElementById('bulkDrawer');
-        const show = ui[0].style.display === 'none';
-        ui.forEach(c => c.style.display = show ? 'block' : 'none');
-        dr.style.display = show ? 'flex' : 'none';
-    }
-    function updateCount() {
-        const count = document.querySelectorAll('input[name="selected_ids"]:checked').length;
-        document.getElementById('selectedCount').innerText = count + " Selected";
+    function updateBulk() {
+        const checked = document.querySelectorAll('input[name="selected_ids"]:checked').length;
+        document.getElementById('bulkBar').style.display = checked > 0 ? 'flex' : 'none';
+        document.getElementById('count').innerText = checked + " selected";
     }
 </script>
 </body>
