@@ -8,6 +8,7 @@ from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import extract
 from concurrent.futures import ThreadPoolExecutor
 
+
 app = Flask(__name__)
 
 # Database Configuration
