@@ -1,156 +1,150 @@
 import os
-import sqlite3
+import random
+import requests
 import pandas as pd
-from flask import Flask, render_template, request, redirect, send_file, url_for
+from datetime import datetime
 from bs4 import BeautifulSoup
+from flask import Flask, render_template, request, redirect, send_file, url_for
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
 
 app = Flask(__name__)
-DB_PATH = '/app/data/bookmarks.db' if os.path.exists('/app/data') else 'bookmarks.db'
 
-def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+# Persistence Handling
+db_dir = '/app/data'
+if not os.path.exists(db_dir):
+    os.makedirs(db_dir)
+app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///{os.path.join(db_dir, 'bookmarks.db')}"
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-def init_db():
-    conn = get_db_connection()
-    conn.execute('''CREATE TABLE IF NOT EXISTS bookmarks 
-                    (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                     title TEXT, url TEXT, category TEXT, tags TEXT, clicks INTEGER DEFAULT 0)''')
-    conn.commit()
-    conn.close()
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+
+# Database Model
+class Bookmark(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(200), nullable=False)
+    url = db.Column(db.String(500), nullable=False)
+    category = db.Column(db.String(100), default='General')
+    tags = db.Column(db.String(200), default='')
+    content = db.Column(db.Text, default='') # Full-text storage
+    clicks = db.Column(db.Integer, default=0)
+    is_dead = db.Column(db.Boolean, default=False)
+    date_added = db.Column(db.DateTime, default=datetime.utcnow)
+
+def scrape_metadata(url):
+    try:
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        r = requests.get(url, headers=headers, timeout=5)
+        soup = BeautifulSoup(r.text, 'html.parser')
+        title = soup.title.string if soup.title else url
+        # Collect paragraphs for full-text search
+        paragraphs = [p.get_text() for p in soup.find_all('p')[:5]]
+        content = " ".join(paragraphs)
+        return title.strip(), content.strip()
+    except:
+        return url, ""
 
 @app.route('/')
 def index():
     q = request.args.get('q', '')
     cat = request.args.get('category', '')
     tag = request.args.get('tag', '')
-    sort = request.args.get('sort', 'id')
+    month = request.args.get('month')
+    year = request.args.get('year')
+    sort = request.args.get('sort', 'newest')
 
-    conn = get_db_connection()
-    query = "SELECT * FROM bookmarks WHERE (title LIKE ? OR url LIKE ? OR tags LIKE ?)"
-    params = [f'%{q}%', f'%{q}%', f'%{q}%']
+    query = Bookmark.query
 
+    # Filters
+    if q:
+        query = query.filter(Bookmark.title.contains(q) | Bookmark.url.contains(q) | Bookmark.content.contains(q))
     if cat:
-        query += " AND category = ?"
-        params.append(cat)
+        query = query.filter(Bookmark.category == cat)
     if tag:
-        query += " AND tags LIKE ?"
-        params.append(f'%{tag}%')
-    
-    query += f" ORDER BY {sort} DESC"
-    
-    bookmarks = conn.execute(query, params).fetchall()
-    categories = conn.execute("SELECT category, COUNT(*) as count FROM bookmarks GROUP BY category").fetchall()
-    total = conn.execute("SELECT COUNT(*) FROM bookmarks").fetchone()[0]
-    top_links = conn.execute("SELECT * FROM bookmarks ORDER BY clicks DESC LIMIT 5").fetchall()
-    
-    # Extract unique tags for the tag cloud
-    all_tags = conn.execute("SELECT tags FROM bookmarks").fetchall()
-    unique_tags = set()
-    for row in all_tags:
-        if row['tags']:
-            unique_tags.update([t.strip() for t in row['tags'].split(',') if t.strip()])
+        query = query.filter(Bookmark.tags.contains(tag))
+    if month and year:
+        query = query.filter(db.extract('month', Bookmark.date_added) == month)
+        query = query.filter(db.extract('year', Bookmark.date_added) == year)
 
-    conn.close()
+    # Sorting
+    if sort == 'clicks': query = query.order_by(Bookmark.clicks.desc())
+    elif sort == 'oldest': query = query.order_by(Bookmark.date_added.asc())
+    else: query = query.order_by(Bookmark.date_added.desc())
+
+    bookmarks = query.all()
+    
+    # Sidebar stats
+    categories = db.session.query(Bookmark.category, db.func.count(Bookmark.id)).group_by(Bookmark.category).all()
+    total = Bookmark.query.count()
+    top_links = Bookmark.query.order_by(Bookmark.clicks.desc()).limit(5).all()
+    
+    # Tag Cloud calculation
+    all_tags_raw = db.session.query(Bookmark.tags).all()
+    unique_tags = sorted(list(set([t.strip() for row in all_tags_raw for t in row[0].split(',') if t.strip()])))
+
     return render_template('index.html', bookmarks=bookmarks, categories=categories, 
-                           total=total, tags=sorted(list(unique_tags)), top_links=top_links, 
-                           search_query=q, current_cat=cat, current_tag=tag)
+                           total=total, tags=unique_tags, top_links=top_links,
+                           search_query=q, current_cat=cat)
 
 @app.route('/add', methods=['POST'])
 def add():
-    conn = get_db_connection()
-    conn.execute("INSERT INTO bookmarks (title, url, category, tags) VALUES (?, ?, ?, ?)",
-                 (request.form['title'], request.form['url'], request.form['category'], request.form['tags']))
-    conn.commit()
-    conn.close()
-    return redirect('/')
+    url = request.form['url']
+    scraped_title, content = scrape_metadata(url)
+    title = request.form['title'] if request.form['title'] else scraped_title
+    
+    new_bm = Bookmark(title=title, url=url, category=request.form['category'], 
+                      tags=request.form['tags'], content=content)
+    db.session.add(new_bm)
+    db.session.commit()
+    return redirect(url_for('index'))
 
 @app.route('/visit/<int:id>')
 def visit(id):
-    conn = get_db_connection()
-    bookmark = conn.execute("SELECT * FROM bookmarks WHERE id = ?", (id,)).fetchone()
-    conn.execute("UPDATE bookmarks SET clicks = clicks + 1 WHERE id = ?", (id,))
-    conn.commit()
-    conn.close()
-    return redirect(bookmark['url'])
+    bm = Bookmark.query.get_or_404(id)
+    bm.clicks += 1
+    db.session.commit()
+    return redirect(bm.url)
 
-@app.route('/edit/<int:id>', methods=['POST'])
-def edit(id):
-    conn = get_db_connection()
-    conn.execute("UPDATE bookmarks SET title=?, url=?, category=?, tags=? WHERE id=?",
-                 (request.form['title'], request.form['url'], request.form['category'], request.form['tags'], id))
-    conn.commit()
-    conn.close()
-    return redirect('/')
+@app.route('/random')
+def random_bm():
+    all_ids = [b.id for b in Bookmark.query.all()]
+    if all_ids:
+        return redirect(url_for('visit', id=random.choice(all_ids)))
+    return redirect(url_for('index'))
 
-@app.route('/bulk_update', methods=['POST'])
-def bulk_update():
-    ids = request.form.getlist('selected_ids')
-    new_cat = request.form.get('new_category')
-    if ids and new_cat:
-        conn = get_db_connection()
-        conn.execute(f"UPDATE bookmarks SET category=? WHERE id IN ({','.join(['?']*len(ids))})", [new_cat] + ids)
-        conn.commit()
-        conn.close()
-    return redirect('/')
+@app.route('/health_check')
+def health_check():
+    for bm in Bookmark.query.all():
+        try:
+            r = requests.head(bm.url, timeout=3)
+            bm.is_dead = (r.status_code >= 400)
+        except:
+            bm.is_dead = True
+    db.session.commit()
+    return redirect(url_for('index'))
 
 @app.route('/delete/<int:id>')
 def delete(id):
-    conn = get_db_connection()
-    conn.execute("DELETE FROM bookmarks WHERE id = ?", (id,))
-    conn.commit()
-    conn.close()
-    return redirect('/')
+    bm = Bookmark.query.get_or_404(id)
+    db.session.delete(bm)
+    db.session.commit()
+    return redirect(url_for('index'))
 
-@app.route('/import_file', methods=['POST'])
-def import_file():
-    file = request.files['file']
-    filename = file.filename
-    conn = get_db_connection()
-    
-    if filename.endswith('.html'):
-        soup = BeautifulSoup(file.read(), 'html.parser')
-        for link in soup.find_all('a'):
-            conn.execute("INSERT INTO bookmarks (title, url, category) VALUES (?, ?, ?)",
-                         (link.text, link.get('href'), "Imported"))
-    elif filename.endswith('.csv'):
-        df = pd.read_csv(file)
-        df.to_sql('bookmarks', conn, if_exists='append', index=False)
-    elif filename.endswith('.xlsx'):
-        df = pd.read_excel(file)
-        df.to_sql('bookmarks', conn, if_exists='append', index=False)
-    
-    conn.commit()
-    conn.close()
-    return redirect('/')
-
-@app.route('/export/<fmt>')
-def export(fmt):
-    conn = get_db_connection()
-    df = pd.read_sql_query("SELECT title, url, category, tags, clicks FROM bookmarks", conn)
-    conn.close()
-    
-    path = f"export.{fmt}"
-    if fmt == 'csv': df.to_csv(path, index=False)
-    elif fmt == 'excel' or fmt == 'xlsx': 
-        path = "export.xlsx"
-        df.to_excel(path, index=False)
-    
+@app.route('/export/excel')
+def export_excel():
+    df = pd.read_sql(db.session.query(Bookmark).statement, db.engine)
+    path = "bookmarks_export.xlsx"
+    df.to_excel(path, index=False)
     return send_file(path, as_attachment=True)
-
-@app.route('/backup')
-def backup():
-    return send_file(DB_PATH, as_attachment=True)
 
 @app.route('/clear_all', methods=['POST'])
 def clear_all():
-    conn = get_db_connection()
-    conn.execute("DELETE FROM bookmarks")
-    conn.commit()
-    conn.close()
-    return redirect('/')
+    Bookmark.query.delete()
+    db.session.commit()
+    return redirect(url_for('index'))
 
 if __name__ == '__main__':
-    init_db()
+    with app.app_context():
+        db.create_all()
     app.run(host='0.0.0.0', port=5000)

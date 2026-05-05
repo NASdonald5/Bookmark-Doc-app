@@ -1,4 +1,17 @@
+# Web Framework
 flask
+
+# Database and Migrations
+flask-sqlalchemy
+flask-migrate
+
+# Data Processing and Excel Support
 pandas
 openpyxl
+
+# Web Scraping and Metadata Extraction
 beautifulsoup4
+requests
+
+# Optional: High-performance WSGI server (recommended for Docker)
+gunicorn
