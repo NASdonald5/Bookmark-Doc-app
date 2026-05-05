@@ -10,35 +10,30 @@
         }
         body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', Tahoma, sans-serif; display: flex; margin: 0; min-height: 100vh; }
         
-        /* Sidebar Styles */
         .sidebar { width: 260px; background: var(--sidebar); padding: 20px; border-right: 1px solid #334155; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
         .cat-item { display: flex; justify-content: space-between; padding: 8px 12px; color: #94a3b8; text-decoration: none; border-radius: 6px; margin-bottom: 4px; transition: 0.2s; font-size: 14px; }
         .cat-item:hover, .cat-active { background: #334155; color: var(--accent); }
         .badge { background: #0f172a; padding: 2px 6px; border-radius: 10px; font-size: 11px; }
 
-        /* Main Content */
         .main-content { flex: 1; padding: 30px; max-width: 1400px; }
         .header-actions { display: flex; gap: 10px; margin-bottom: 25px; align-items: center; flex-wrap: wrap; }
         
-        /* Forms & Inputs */
         .glass-panel { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; }
         input, select, button { background: #0f172a; border: 1px solid #475569; color: white; padding: 8px 12px; border-radius: 6px; }
         .btn-accent { background: var(--accent); color: #0f172a; border: none; font-weight: bold; cursor: pointer; }
         .btn-danger { background: var(--danger); color: white; border: none; cursor: pointer; }
 
-        /* Dynamic Grid System */
         .wrapper { display: grid; gap: 12px; transition: 0.3s; }
         .grid-view { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
         .small-view { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
         .list-view { grid-template-columns: 1fr; }
 
-        /* Bookmark Cards */
-        .card { background: var(--card); padding: 12px; border-radius: 8px; border: 1px solid #334155; position: relative; overflow: hidden; }
-        .card:hover { border-color: var(--accent); }
+        .card { background: var(--card); padding: 12px; border-radius: 8px; border: 1px solid #334155; position: relative; overflow: hidden; transition: 0.2s; }
+        .card:hover { border-color: var(--accent); resize: both; } /* Requirement 15: Resizeable */
+        .card.dead { border-left: 4px solid var(--danger); }
         .card-title { color: white; text-decoration: none; font-weight: 600; font-size: 14px; display: block; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .tag-pill { font-size: 9px; background: #334155; color: var(--accent); padding: 2px 6px; border-radius: 4px; margin-right: 3px; cursor: pointer; text-decoration: none; }
         
-        /* Bulk Actions Drawer */
         .bulk-drawer { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--accent); color: black; padding: 10px 25px; border-radius: 30px; display: none; align-items: center; gap: 15px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 100; }
     </style>
 </head>
@@ -49,15 +44,21 @@
     <p style="font-size: 12px; opacity: 0.7;">Total: {{ total }} Bookmarks</p>
     
     <div style="margin: 20px 0;">
-        <a href="/backup" class="cat-item" style="color: #4ade80;">💾 Backup Database</a>
+        <a href="/backup" class="cat-item" style="color: #4ade80;">💾 Backup DB (SQLite)</a>
         <a href="/export/excel" class="cat-item">📊 Export Excel</a>
+        <a href="/check_links" class="cat-item" style="color: #fbbf24;">🔍 Dead Link Check</a>
     </div>
 
-    <div style="font-size: 11px; color: #64748b; margin-bottom: 8px; font-weight: bold; text-transform: uppercase;">Categories</div>
+    <div style="font-size: 11px; color: #64748b; margin-bottom: 8px; font-weight: bold; text-transform: uppercase;">Time Machine</div>
+    {% for m in months %}
+    <a href="/?month={{ m }}" class="cat-item">{{ m }}</a>
+    {% endfor %}
+
+    <div style="font-size: 11px; color: #64748b; margin: 20px 0 8px; font-weight: bold; text-transform: uppercase;">Categories</div>
     <a href="/" class="cat-item {% if not current_cat %}cat-active{% endif %}">All Items <span class="badge">{{ total }}</span></a>
-    {% for c in categories %}
-    <a href="/?category={{ c.category }}" class="cat-item {% if current_cat == c.category %}cat-active{% endif %}">
-        {{ c.category or 'General' }} <span class="badge">{{ c.count }}</span>
+    {% for c, count in categories %}
+    <a href="/?category={{ c }}" class="cat-item {% if current_cat == c %}cat-active{% endif %}">
+        {{ c or 'General' }} <span class="badge">{{ count }}</span>
     </a>
     {% endfor %}
 
@@ -77,14 +78,14 @@
 </div>
 
 <div class="main-content">
-    <!-- Top Search & Sort -->
     <div class="header-actions">
         <form style="flex: 1; display: flex; gap: 8px;">
-            <input type="text" name="q" placeholder="Search title, URL, or tags..." value="{{ search_query }}" style="flex: 1;">
+            <input type="text" name="q" placeholder="Full-text search..." value="{{ search_query }}" style="flex: 1;">
             <select name="sort" onchange="this.form.submit()">
-                <option value="id">Date Added</option>
-                <option value="clicks">Most Popular</option>
-                <option value="title">Alphabetical</option>
+                <option value="id">Recent</option>
+                <option value="clicks">Popular</option>
+                <option value="title">A-Z</option>
+                <option value="dead">Dead Links</option>
             </select>
             <button type="submit" class="btn-accent">Search</button>
         </form>
@@ -96,13 +97,12 @@
         </div>
     </div>
 
-    <!-- Quick Add & Import -->
     <div class="glass-panel" style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
         <form action="/add" method="post" style="display: flex; gap: 10px; flex: 1;">
-            <input type="text" name="title" placeholder="Title" required>
-            <input type="url" name="url" placeholder="URL" required>
+            <input type="url" name="url" placeholder="URL" required style="flex: 1;">
+            <input type="text" name="title" placeholder="Custom Title (Optional)">
             <input type="text" name="category" placeholder="Category" style="width: 100px;">
-            <input type="text" name="tags" placeholder="Tags (comma)" style="width: 100px;">
+            <input type="text" name="tags" placeholder="Tags" style="width: 100px;">
             <button type="submit" class="btn-accent">Add</button>
         </form>
         <div style="border-left: 1px solid #334155; padding-left: 15px;">
@@ -115,7 +115,6 @@
         </div>
     </div>
 
-    <!-- Top Clicks -->
     {% if top_links %}
     <h4 style="color: gold; margin-bottom: 10px;">⭐ Most Visited</h4>
     <div class="wrapper small-view" style="margin-bottom: 30px;">
@@ -128,17 +127,17 @@
     </div>
     {% endif %}
 
-    <!-- Main Grid -->
     <form id="bulkForm" action="/bulk_update" method="post">
         <div id="bulkDrawer" class="bulk-drawer">
             <span id="selectedCount">0 Selected</span>
-            <input type="text" name="new_category" placeholder="Move to category..." style="background: white; color: black;">
-            <button type="submit" style="background: black; color: white;">Apply</button>
+            <input type="text" name="new_category" placeholder="Move Category..." style="background: white; color: black; width: 120px;">
+            <input type="text" name="new_tag" placeholder="Add Tag..." style="background: white; color: black; width: 120px;">
+            <button type="submit" style="background: black; color: white;">Apply Bulk</button>
         </div>
 
         <div id="wrapper" class="wrapper grid-view">
             {% for b in bookmarks %}
-            <div class="card">
+            <div class="card {% if b.is_dead %}dead{% endif %}">
                 <input type="checkbox" name="selected_ids" value="{{ b.id }}" class="bulk-ui" style="display:none;" onchange="updateCount()">
                 <div style="font-size: 9px; color: var(--accent); font-weight: bold; margin-bottom: 4px;">{{ b.category or 'GENERAL' }}</div>
                 <a href="/visit/{{ b.id }}" target="_blank" class="card-title">{{ b.title }}</a>

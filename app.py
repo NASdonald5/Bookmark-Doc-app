@@ -5,6 +5,7 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 from flask import Flask, render_template, request, redirect, send_file, url_for
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import extract
 
 app = Flask(__name__)
 
@@ -21,9 +22,20 @@ class Bookmark(db.Model):
     url = db.Column(db.String(500), nullable=False)
     category = db.Column(db.String(100), default='General')
     tags = db.Column(db.String(200), default='')
-    content = db.Column(db.Text, default='') 
+    content = db.Column(db.Text, default='') # For Full-Text Search
     clicks = db.Column(db.Integer, default=0)
+    is_dead = db.Column(db.Boolean, default=False)
     date_added = db.Column(db.DateTime, default=datetime.utcnow)
+
+def get_metadata(url):
+    try:
+        r = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=3)
+        soup = BeautifulSoup(r.text, 'html.parser')
+        title = soup.title.string if soup.title else url
+        paras = " ".join([p.get_text() for p in soup.find_all('p')[:3]])
+        return title.strip(), paras.strip()
+    except:
+        return url, ""
 
 @app.route('/')
 def index():
@@ -31,42 +43,49 @@ def index():
     cat = request.args.get('category', '')
     tag = request.args.get('tag', '')
     sort = request.args.get('sort', 'id')
-    
+    month = request.args.get('month', '') # Time Machine
+
     query = Bookmark.query
-    if q: query = query.filter(Bookmark.title.contains(q) | Bookmark.url.contains(q) | Bookmark.tags.contains(q))
+    if q: # Full-Text Search (Title, URL, Scraped Content, Tags)
+        query = query.filter(Bookmark.title.contains(q) | Bookmark.url.contains(q) | Bookmark.content.contains(q) | Bookmark.tags.contains(q))
     if cat: query = query.filter(Bookmark.category == cat)
     if tag: query = query.filter(Bookmark.tags.contains(tag))
-    
+    if month: # Time Machine Logic
+        m_dt = datetime.strptime(month, '%Y-%m')
+        query = query.filter(extract('year', Bookmark.date_added) == m_dt.year, extract('month', Bookmark.date_added) == m_dt.month)
+
     if sort == 'clicks': query = query.order_by(Bookmark.clicks.desc())
     elif sort == 'title': query = query.order_by(Bookmark.title.asc())
+    elif sort == 'dead': query = query.order_by(Bookmark.is_dead.desc())
     else: query = query.order_by(Bookmark.date_added.desc())
 
-    bookmarks = query.all()
-    # Categorization count for sidebar
-    categories = db.session.query(Bookmark.category, db.func.count(Bookmark.id).label('count')).group_by(Bookmark.category).all()
-    # Unique tags cloud
-    all_tags_raw = db.session.query(Bookmark.tags).all()
-    unique_tags = sorted(list(set([t.strip() for row in all_tags_raw for t in row[0].split(',') if t.strip()])))
-    # Top Visited Section
-    top_links = Bookmark.query.order_by(Bookmark.clicks.desc()).limit(5).all()
+    # Data for Sidebar & Stats
+    categories = db.session.query(Bookmark.category, db.func.count(Bookmark.id)).group_by(Bookmark.category).all()
+    all_tags = sorted(list(set([t.strip() for r in db.session.query(Bookmark.tags).all() for t in r[0].split(',') if t.strip()])))
+    months = db.session.query(Bookmark.date_added).order_by(Bookmark.date_added.desc()).all()
+    unique_months = sorted(list(set([d[0].strftime('%Y-%m') for d in months])), reverse=True)
 
-    return render_template('index.html', bookmarks=bookmarks, categories=categories, 
-                           tags=unique_tags, total=Bookmark.query.count(), 
-                           top_links=top_links, search_query=q, current_cat=cat)
+    return render_template('index.html', 
+        bookmarks=query.all(), 
+        categories=categories, 
+        tags=all_tags, 
+        months=unique_months,
+        total=Bookmark.query.count(), 
+        top_links=Bookmark.query.order_by(Bookmark.clicks.desc()).limit(5).all(),
+        search_query=q, current_cat=cat, current_tag=tag)
 
 @app.route('/add', methods=['POST'])
 def add():
     url = request.form['url']
-    title = request.form['title']
-    # Minimal metadata fallback if title is missing
-    if not title:
-        try:
-            r = requests.get(url, timeout=3)
-            soup = BeautifulSoup(r.text, 'html.parser')
-            title = soup.title.string if soup.title else url
-        except: title = url
-        
-    db.session.add(Bookmark(title=title, url=url, category=request.form['category'], tags=request.form['tags']))
+    title, content = get_metadata(url)
+    user_title = request.form.get('title')
+    db.session.add(Bookmark(
+        title=user_title if user_title else title, 
+        url=url, 
+        category=request.form.get('category', 'General'), 
+        tags=request.form.get('tags', ''),
+        content=content
+    ))
     db.session.commit()
     return redirect(url_for('index'))
 
@@ -78,36 +97,48 @@ def import_file():
         if file.filename.lower().endswith('.html'):
             soup = BeautifulSoup(file.read(), 'html.parser')
             for a in soup.find_all('a'):
-                db.session.add(Bookmark(title=a.text or a.get('href'), url=a.get('href'), category="Imported"))
+                db.session.add(Bookmark(title=a.text, url=a.get('href'), category="Imported"))
         else:
             df = pd.read_csv(file) if file.filename.endswith('.csv') else pd.read_excel(file)
             df.columns = [c.lower().strip() for c in df.columns]
             for _, r in df.iterrows():
-                u = r.get('url') or r.get('link') or r.get('address')
+                u = r.get('url') or r.get('link')
                 if u:
                     db.session.add(Bookmark(title=str(r.get('title', u)), url=str(u), 
                                   category=str(r.get('category', 'Imported')), tags=str(r.get('tags', ''))))
         db.session.commit()
-    except Exception as e:
-        db.session.rollback()
-        return f"Import Error: {str(e)}", 500
+    except: return "Internal Import Error", 500
     return redirect(url_for('index'))
 
 @app.route('/bulk_update', methods=['POST'])
 def bulk_update():
     ids = request.form.getlist('selected_ids')
     new_cat = request.form.get('new_category')
-    if ids and new_cat:
-        Bookmark.query.filter(Bookmark.id.in_(ids)).update({Bookmark.category: new_cat}, synchronize_session=False)
+    new_tag = request.form.get('new_tag')
+    if ids:
+        targets = Bookmark.query.filter(Bookmark.id.in_(ids))
+        if new_cat: targets.update({Bookmark.category: new_cat}, synchronize_session=False)
+        if new_tag:
+            for b in targets.all():
+                b.tags = f"{b.tags},{new_tag}".strip(',')
         db.session.commit()
     return redirect(url_for('index'))
 
-@app.route('/export/excel')
-def export_excel():
+@app.route('/check_links')
+def check_links():
+    for b in Bookmark.query.all():
+        try: b.is_dead = requests.head(b.url, timeout=2).status_code >= 400
+        except: b.is_dead = True
+    db.session.commit()
+    return redirect(url_for('index'))
+
+@app.route('/export/<fmt>')
+def export(fmt):
     df = pd.read_sql(db.session.query(Bookmark).statement, db.engine)
-    path = "bookmarks_export.xlsx"
-    df.to_excel(path, index=False)
-    return send_file(path, as_attachment=True)
+    name = f"export.{fmt}"
+    if fmt == 'csv': df.to_csv(name, index=False)
+    elif fmt == 'excel': df.to_excel(name, index=False)
+    return send_file(name, as_attachment=True)
 
 @app.route('/backup')
 def backup():
@@ -115,15 +146,14 @@ def backup():
 
 @app.route('/visit/<int:id>')
 def visit(id):
-    b = Bookmark.query.get_or_404(id)
+    b = Bookmark.query.get(id)
     b.clicks += 1
     db.session.commit()
     return redirect(b.url)
 
 @app.route('/delete/<int:id>')
 def delete(id):
-    b = Bookmark.query.get_or_404(id)
-    db.session.delete(b)
+    db.session.delete(Bookmark.query.get(id))
     db.session.commit()
     return redirect(url_for('index'))
 
