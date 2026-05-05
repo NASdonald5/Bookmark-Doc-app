@@ -3,109 +3,165 @@
 <head>
     <meta charset="UTF-8">
     <title>Bookmark Pro Dashboard</title>
+    <!-- Drag and Drop Library -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <style>
-        :root { --bg: #0f172a; --sidebar: #1e293b; --card: #1e293b; --accent: #38bdf8; --danger: #ef4444; --text: #f1f5f9; }
-        [data-theme='light'] { --bg: #f8fafc; --sidebar: #ffffff; --card: #ffffff; --accent: #0ea5e9; --text: #1e293b; }
-        [data-theme='sepia'] { --bg: #f4ecd8; --sidebar: #e8dfc4; --card: #fdf6e3; --accent: #859900; --text: #586e75; }
+        :root { 
+            --bg: #0f172a; --sidebar: #1e293b; --card: #1e293b; 
+            --accent: #38bdf8; --danger: #ef4444; --text: #f1f5f9;
+        }
+        /* Theme Overrides */
+        [data-theme='light'] {
+            --bg: #f8fafc; --sidebar: #ffffff; --card: #ffffff;
+            --accent: #0ea5e9; --text: #1e293b;
+        }
+        [data-theme='sepia'] {
+            --bg: #f4ecd8; --sidebar: #e8dfc4; --card: #fdf6e3;
+            --accent: #859900; --text: #586e75;
+        }
 
-        body { background: var(--bg); color: var(--text); font-family: sans-serif; display: flex; margin: 0; min-height: 100vh; transition: 0.3s; }
-        .sidebar { width: 260px; background: var(--sidebar); padding: 20px; border-right: 1px solid #334155; height: 100vh; position: sticky; top: 0; overflow-y: auto; }
-        .cat-item { display: flex; justify-content: space-between; padding: 8px; color: #94a3b8; text-decoration: none; border-radius: 6px; font-size: 14px; margin-bottom: 4px; }
-        .cat-item:hover, .cat-active { background: #334155; color: var(--accent); }
-        .main-content { flex: 1; padding: 30px; }
-        .glass-panel { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; }
+        body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; display: flex; margin: 0; min-height: 100vh; transition: 0.3s; }
         
+        /* Sidebar & Navigation */
+        .sidebar { width: 260px; background: var(--sidebar); padding: 20px; border-right: 1px solid #334155; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+        .cat-item { display: flex; justify-content: space-between; padding: 8px 12px; color: #94a3b8; text-decoration: none; border-radius: 6px; margin-bottom: 4px; transition: 0.2s; font-size: 14px; cursor: pointer; }
+        .cat-item:hover, .cat-active { background: #334155; color: var(--accent); }
+        .cat-drop-zone.drag-over { background: rgba(56, 189, 248, 0.2); border-radius: 6px; }
+        .badge { background: #0f172a; padding: 2px 6px; border-radius: 10px; font-size: 11px; }
+
+        .main-content { flex: 1; padding: 30px; max-width: 1400px; }
+        .header-actions { display: flex; gap: 10px; margin-bottom: 25px; align-items: center; flex-wrap: wrap; }
+        
+        .glass-panel { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid #334155; margin-bottom: 20px; }
+        input, select, button { background: var(--bg); border: 1px solid #475569; color: var(--text); padding: 8px 12px; border-radius: 6px; }
+        .btn-accent { background: var(--accent); color: white; border: none; font-weight: bold; cursor: pointer; }
+
+        /* Grid Views */
         .wrapper { display: grid; gap: 12px; }
         .grid-view { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
         .small-view { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
         .list-view { grid-template-columns: 1fr; }
 
-        .card { background: var(--card); padding: 12px; border-radius: 8px; border: 1px solid #334155; position: relative; transition: 0.2s; cursor: grab; }
-        .card:hover { border-color: var(--accent); resize: both; overflow: auto; }
+        /* Bookmark Card */
+        .card { 
+            background: var(--card); padding: 12px; border-radius: 8px; border: 1px solid #334155; 
+            position: relative; overflow: hidden; transition: 0.2s; 
+            resize: both; overflow: auto; min-width: 100px; min-height: 80px; 
+        }
+        .card:hover { border-color: var(--accent); }
         .card.dead { border-left: 4px solid var(--danger); }
-        .tag-pill { font-size: 9px; background: #334155; color: var(--accent); padding: 2px 6px; border-radius: 4px; margin-right: 3px; }
+        .card-title { color: var(--text); text-decoration: none; font-weight: 600; font-size: 13px; display: block; margin-bottom: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tag-pill { font-size: 9px; background: #334155; color: var(--accent); padding: 2px 6px; border-radius: 4px; margin-right: 3px; text-decoration: none; }
         
-        .bulk-drawer { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--accent); color: #000; padding: 15px; border-radius: 30px; display: none; gap: 10px; z-index: 100; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
-        .import-btn { font-size: 12px; cursor: pointer; color: var(--accent); }
+        .bulk-drawer { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--accent); color: white; padding: 10px 25px; border-radius: 30px; display: none; align-items: center; gap: 15px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); z-index: 100; }
+        
+        .sortable-ghost { opacity: 0.4; background: var(--accent) !important; }
     </style>
 </head>
 <body data-theme="dark">
 
 <div class="sidebar">
-    <h3>📚 Library</h3>
-    <select onchange="document.body.setAttribute('data-theme', this.value)" style="width: 100%; margin-bottom: 20px;">
-        <option value="dark">Dark Mode</option>
-        <option value="light">Light Mode</option>
-        <option value="sepia">Sepia Mode</option>
-    </select>
-
+    <h3>📚 Bookmark Pro</h3>
+    
+    <!-- Theme Switcher -->
     <div style="margin-bottom: 20px;">
-        <a href="/backup" class="cat-item" style="color: #4ade80;">💾 Backup Database</a>
-        <a href="/check_links" class="cat-item" style="color: #fbbf24;">🔍 Fast Dead Check</a>
+        <select onchange="changeTheme(this.value)" style="width: 100%;">
+            <option value="dark">🌙 Dark Mode</option>
+            <option value="light">☀️ Light Mode</option>
+            <option value="sepia">📖 Sepia Mode</option>
+        </select>
     </div>
 
-    <p style="font-size: 11px; color: #64748b;">CATEGORIES</p>
+    <div style="margin: 20px 0;">
+        <a href="/backup" class="cat-item" style="color: #4ade80;">💾 Backup DB</a>
+        <a href="/export/excel" class="cat-item">📊 Export Excel</a>
+        <a href="/export/html" class="cat-item">🌐 Export HTML</a>
+        <a href="/check_links" class="cat-item" style="color: #fbbf24;">🔍 Dead Link Check</a>
+    </div>
+
+    <div style="font-size: 11px; color: #64748b; margin-bottom: 8px; font-weight: bold;">TIME MACHINE</div>
+    {% for m in months %}
+    <a href="/?month={{ m }}" class="cat-item">{{ m }}</a>
+    {% endfor %}
+
+    <div style="font-size: 11px; color: #64748b; margin: 20px 0 8px; font-weight: bold;">CATEGORIES</div>
+    <a href="/" class="cat-item {% if not current_cat %}cat-active{% endif %}">All Items <span class="badge">{{ total }}</span></a>
     {% for c, count in categories %}
-    <div class="drop-zone" data-category="{{ c }}">
-        <a href="/?category={{ c }}" class="cat-item">
-            {{ c or 'General' }} <span style="background:#0f172a; padding:2px 6px; border-radius:10px;">{{ count }}</span>
+    <div class="cat-drop-zone" data-category="{{ c }}">
+        <a href="/?category={{ c }}" class="cat-item {% if current_cat == c %}cat-active{% endif %}">
+            {{ c or 'General' }} <span class="badge">{{ count }}</span>
         </a>
     </div>
     {% endfor %}
 
-    <div style="margin-top: 40px; border-top: 1px solid #ef444433; padding-top: 20px;">
-        <p style="color: var(--danger); font-size: 11px; font-weight: bold;">DANGER ZONE</p>
+    <div style="font-size: 11px; color: #64748b; margin: 20px 0 8px; font-weight: bold;">TAGS</div>
+    <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+        {% for t in tags %}
+        <a href="/?tag={{ t }}" class="tag-pill">{{ t }}</a>
+        {% endfor %}
+    </div>
+
+    <div style="margin-top: 50px;">
         <form action="/clear_all" method="post" onsubmit="return confirm('Wipe everything?')">
-            <button type="submit" style="background:var(--danger); color:white; width:100%; border:none; padding:8px; border-radius:5px; cursor:pointer;">Clear All</button>
+            <button type="submit" style="background: var(--danger); width: 100%; border:none; color:white; padding:8px; border-radius:5px; cursor:pointer;">Clear Entire DB</button>
         </form>
     </div>
 </div>
 
 <div class="main-content">
-    <div class="glass-panel" style="display:flex; justify-content:space-between; align-items:center;">
-        <form action="/add" method="post" style="display:flex; gap:10px; flex:1;">
-            <input type="url" name="url" placeholder="URL" required style="flex:1;">
-            <input type="text" name="category" placeholder="Category" style="width:120px;">
-            <button type="submit" style="background:var(--accent); border:none; padding:8px 15px; border-radius:5px; font-weight:bold;">Add</button>
+    <div class="header-actions">
+        <form style="flex: 1; display: flex; gap: 8px;">
+            <input type="text" name="q" placeholder="Full-text search..." value="{{ search_query }}" style="flex: 1;">
+            <select name="sort" onchange="this.form.submit()">
+                <option value="id" {% if sort=='id' %}selected{% endif %}>Recent</option>
+                <option value="clicks" {% if sort=='clicks' %}selected{% endif %}>Popular</option>
+                <option value="title" {% if sort=='title' %}selected{% endif %}>A-Z</option>
+                <option value="dead" {% if sort=='dead' %}selected{% endif %}>Dead Links</option>
+            </select>
+            <button type="submit" class="btn-accent">Search</button>
         </form>
-        <div style="margin-left: 20px;">
+        <div style="display: flex; gap: 5px;">
+            <button onclick="setView('grid-view')">Grid</button>
+            <button onclick="setView('small-view')">Icons</button>
+            <button onclick="setView('list-view')">List</button>
+            <button onclick="toggleBulk()" style="background: #475569;">Bulk</button>
+        </div>
+    </div>
+
+    <div class="glass-panel" style="display: flex; gap: 15px; align-items: center;">
+        <form action="/add" method="post" style="display: flex; gap: 10px; flex: 1;">
+            <input type="url" name="url" placeholder="URL" required style="flex: 1;">
+            <input type="text" name="category" placeholder="Category" style="width: 100px;">
+            <button type="submit" class="btn-accent">Add</button>
+        </form>
+        <div style="border-left: 1px solid #334155; padding-left: 15px;">
             <form action="/import_file" method="post" enctype="multipart/form-data">
-                <label class="import-btn">📤 Import (HTML/CSV/XLSX) <input type="file" name="file" hidden onchange="this.form.submit()"></label>
+                <label style="font-size: 12px; cursor: pointer; color: var(--accent);">
+                    📤 Import (HTML/CSV/XLSX)
+                    <input type="file" name="file" hidden onchange="this.form.submit()">
+                </label>
             </form>
         </div>
     </div>
 
-    <div style="display:flex; gap:10px; margin-bottom:20px;">
-        <form style="flex:1; display:flex; gap:5px;">
-            <input type="text" name="q" placeholder="Search..." style="flex:1;">
-            <select name="sort">
-                <option value="id">Date</option>
-                <option value="clicks">Popular</option>
-                <option value="title">A-Z</option>
-            </select>
-            <button type="submit">Filter</button>
-        </form>
-        <button onclick="setView('grid-view')">Grid</button>
-        <button onclick="setView('list-view')">List</button>
-        <button onclick="toggleBulk()">Bulk Mode</button>
-    </div>
-
     <form id="bulkForm" action="/bulk_update" method="post">
         <div id="bulkDrawer" class="bulk-drawer">
-            <span id="selCount">0 Selected</span>
-            <input type="text" name="new_category" placeholder="Change Category">
-            <button type="submit">Apply</button>
+            <span id="selectedCount">0 Selected</span>
+            <input type="text" name="new_category" placeholder="Move Category..." style="background:white; color:black; width:120px;">
+            <input type="text" name="new_tag" placeholder="Add Tag..." style="background:white; color:black; width:120px;">
+            <button type="submit" style="background: black; color: white;">Apply Bulk</button>
         </div>
 
         <div id="wrapper" class="wrapper grid-view">
             {% for b in bookmarks %}
             <div class="card {% if b.is_dead %}dead{% endif %}" data-id="{{ b.id }}">
                 <input type="checkbox" name="selected_ids" value="{{ b.id }}" class="bulk-ui" style="display:none;" onchange="updateCount()">
-                <div style="font-size: 9px; color: var(--accent); font-weight: bold;">{{ b.category or 'GENERAL' }}</div>
-                <a href="/visit/{{ b.id }}" target="_blank" style="color:white; text-decoration:none; font-weight:bold; font-size:14px; display:block; margin:5px 0;">{{ b.title }}</a>
-                <div>{% for t in (b.tags or '').split(',') %}{% if t %}<span class="tag-pill">{{ t }}</span>{% endif %}{% endfor %}</div>
-                <a href="/delete/{{ b.id }}" style="position:absolute; top:5px; right:8px; color:var(--danger); text-decoration:none;">×</a>
+                <div style="font-size: 9px; color: var(--accent); font-weight: bold; margin-bottom: 4px;">{{ b.category or 'GENERAL' }}</div>
+                <a href="/visit/{{ b.id }}" target="_blank" class="card-title">{{ b.title }}</a>
+                <div style="margin-top: 5px;">
+                    {% for t in (b.tags or '').split(',') %}{% if t %}<span class="tag-pill">{{ t }}</span>{% endif %}{% endfor %}
+                </div>
+                <a href="/delete/{{ b.id }}" style="position: absolute; top: 5px; right: 8px; color: var(--danger); text-decoration: none;">×</a>
             </div>
             {% endfor %}
         </div>
@@ -113,34 +169,55 @@
 </div>
 
 <script>
+    // Theme logic
+    function changeTheme(theme) {
+        document.body.setAttribute('data-theme', theme);
+        localStorage.setItem('theme', theme);
+    }
+    
+    // View logic
     function setView(v) { document.getElementById('wrapper').className = 'wrapper ' + v; }
+
+    // Bulk Mode
     function toggleBulk() {
         const ui = document.querySelectorAll('.bulk-ui');
+        const dr = document.getElementById('bulkDrawer');
         const show = ui[0].style.display === 'none';
         ui.forEach(c => c.style.display = show ? 'inline-block' : 'none');
-        document.getElementById('bulkDrawer').style.display = show ? 'flex' : 'none';
+        dr.style.display = show ? 'flex' : 'none';
     }
+    
     function updateCount() {
-        document.getElementById('selCount').innerText = document.querySelectorAll('input[name="selected_ids"]:checked').length + " Selected";
+        const count = document.querySelectorAll('input[name="selected_ids"]:checked').length;
+        document.getElementById('selectedCount').innerText = count + " Selected";
     }
 
-    new Sortable(document.getElementById('wrapper'), {
+    // Drag and Drop Initialization
+    const el = document.getElementById('wrapper');
+    const sortable = new Sortable(el, {
         animation: 150,
         ghostClass: 'sortable-ghost',
         onEnd: function (evt) {
-            const card = evt.item;
+            const itemEl = evt.item;
             const target = document.elementFromPoint(evt.originalEvent.clientX, evt.originalEvent.clientY);
-            const dropZone = target ? target.closest('.drop-zone') : null;
+            const dropZone = target ? target.closest('.cat-drop-zone') : null;
+            
             if (dropZone) {
-                const cat = dropZone.getAttribute('data-category');
+                const category = dropZone.getAttribute('data-category');
+                const bookmarkId = itemEl.getAttribute('data-id');
+                
                 fetch('/move_bookmark', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({id: card.getAttribute('data-id'), category: cat})
+                    body: JSON.stringify({id: bookmarkId, category: category})
                 }).then(() => window.location.reload());
             }
         }
     });
+
+    // Initialize theme from storage
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    changeTheme(savedTheme);
 </script>
 </body>
 </html>

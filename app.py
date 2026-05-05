@@ -3,7 +3,7 @@ import requests
 import pandas as pd
 from datetime import datetime
 from bs4 import BeautifulSoup
-from flask import Flask, render_template, request, redirect, send_file, url_for, jsonify
+from flask import Flask, render_template, request, redirect, send_file, url_for, jsonify, make_response
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import extract
 from concurrent.futures import ThreadPoolExecutor
@@ -43,18 +43,12 @@ def check_single_link(bookmark_id):
     with app.app_context():
         b = Bookmark.query.get(bookmark_id)
         try:
+            # Using HEAD request is faster than GET
             response = requests.head(b.url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=3, allow_redirects=True)
             b.is_dead = response.status_code >= 400
         except:
             b.is_dead = True
         db.session.commit()
-
-@app.route('/check_links')
-def check_links():
-    bookmark_ids = [b.id for b in Bookmark.query.all()]
-    with ThreadPoolExecutor(max_workers=20) as executor:
-        executor.map(check_single_link, bookmark_ids)
-    return redirect(url_for('index'))
 
 @app.route('/')
 def index():
@@ -73,7 +67,7 @@ def index():
         try:
             m_dt = datetime.strptime(month, '%Y-%m')
             query = query.filter(extract('year', Bookmark.date_added) == m_dt.year, extract('month', Bookmark.date_added) == m_dt.month)
-        except: pass
+        except ValueError: pass
 
     if sort == 'clicks': query = query.order_by(Bookmark.clicks.desc())
     elif sort == 'title': query = query.order_by(Bookmark.title.asc())
@@ -128,36 +122,50 @@ def import_file():
             soup = BeautifulSoup(file.read(), 'html.parser')
             for a in soup.find_all('a'):
                 href = a.get('href')
-                if href: db.session.add(Bookmark(title=a.text or href, url=href, category="Imported"))
+                if href:
+                    # Update if exists, else create
+                    existing = Bookmark.query.filter_by(url=href).first()
+                    if existing:
+                        existing.title = a.text or existing.title
+                    else:
+                        db.session.add(Bookmark(title=a.text or href, url=href, category="Imported"))
         else:
             df = pd.read_csv(file) if file.filename.endswith('.csv') else pd.read_excel(file)
             df.columns = [c.lower().strip() for c in df.columns]
             for _, r in df.iterrows():
                 u = r.get('url') or r.get('link')
                 if u:
-                    db.session.add(Bookmark(title=str(r.get('title', u)), url=str(u), 
-                                  category=str(r.get('category', 'Imported')), tags=str(r.get('tags', ''))))
+                    existing = Bookmark.query.filter_by(url=str(u)).first()
+                    if existing:
+                        existing.category = str(r.get('category', existing.category))
+                        existing.tags = str(r.get('tags', existing.tags))
+                    else:
+                        db.session.add(Bookmark(title=str(r.get('title', u)), url=str(u), 
+                                      category=str(r.get('category', 'Imported')), tags=str(r.get('tags', ''))))
         db.session.commit()
-    except: return "Internal Import Error", 500
+    except Exception as e:
+        return f"Import Error: {str(e)}", 500
     return redirect(url_for('index'))
 
-@app.route('/bulk_update', methods=['POST'])
-def bulk_update():
-    ids = request.form.getlist('selected_ids')
-    new_cat = request.form.get('new_category')
-    new_tag = request.form.get('new_tag')
-    if ids:
-        targets = Bookmark.query.filter(Bookmark.id.in_(ids))
-        if new_cat: targets.update({Bookmark.category: new_cat}, synchronize_session=False)
-        if new_tag:
-            for b in targets.all():
-                b.tags = f"{b.tags},{new_tag}".strip(',')
-        db.session.commit()
+@app.route('/check_links')
+def check_links():
+    bookmark_ids = [b.id for b in Bookmark.query.all()]
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        executor.map(check_single_link, bookmark_ids)
     return redirect(url_for('index'))
 
 @app.route('/export/<fmt>')
 def export(fmt):
     df = pd.read_sql(db.session.query(Bookmark).statement, db.engine)
+    if fmt == 'html':
+        content = "<html><body><h1>Bookmarks</h1><ul>"
+        for b in Bookmark.query.all():
+            content += f'<li><a href="{b.url}">{b.title}</a></li>'
+        content += "</ul></body></html>"
+        response = make_response(content)
+        response.headers["Content-Disposition"] = "attachment; filename=bookmarks.html"
+        return response
+    
     name = f"export.{fmt}"
     if fmt == 'csv': df.to_csv(name, index=False)
     elif fmt == 'excel': df.to_excel(name, index=False)
@@ -184,6 +192,20 @@ def delete(id):
 def clear_all():
     Bookmark.query.delete()
     db.session.commit()
+    return redirect(url_for('index'))
+
+@app.route('/bulk_update', methods=['POST'])
+def bulk_update():
+    ids = request.form.getlist('selected_ids')
+    new_cat = request.form.get('new_category')
+    new_tag = request.form.get('new_tag')
+    if ids:
+        targets = Bookmark.query.filter(Bookmark.id.in_(ids))
+        if new_cat: targets.update({Bookmark.category: new_cat}, synchronize_session=False)
+        if new_tag:
+            for b in targets.all():
+                b.tags = f"{b.tags},{new_tag}".strip(',')
+        db.session.commit()
     return redirect(url_for('index'))
 
 if __name__ == '__main__':
