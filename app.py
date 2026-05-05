@@ -3,9 +3,10 @@ import requests
 import pandas as pd
 from datetime import datetime
 from bs4 import BeautifulSoup
-from flask import Flask, render_template, request, redirect, send_file, url_for
+from flask import Flask, render_template, request, redirect, send_file, url_for, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import extract
+from concurrent.futures import ThreadPoolExecutor
 
 app = Flask(__name__)
 
@@ -22,7 +23,7 @@ class Bookmark(db.Model):
     url = db.Column(db.String(500), nullable=False)
     category = db.Column(db.String(100), default='General')
     tags = db.Column(db.String(200), default='')
-    content = db.Column(db.Text, default='') # For Full-Text Search
+    content = db.Column(db.Text, default='') 
     clicks = db.Column(db.Integer, default=0)
     is_dead = db.Column(db.Boolean, default=False)
     date_added = db.Column(db.DateTime, default=datetime.utcnow)
@@ -37,33 +38,52 @@ def get_metadata(url):
     except:
         return url, ""
 
+# FAST DEAD LINK LOGIC
+def check_single_link(bookmark_id):
+    with app.app_context():
+        b = Bookmark.query.get(bookmark_id)
+        try:
+            response = requests.head(b.url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=3, allow_redirects=True)
+            b.is_dead = response.status_code >= 400
+        except:
+            b.is_dead = True
+        db.session.commit()
+
+@app.route('/check_links')
+def check_links():
+    bookmark_ids = [b.id for b in Bookmark.query.all()]
+    with ThreadPoolExecutor(max_workers=20) as executor:
+        executor.map(check_single_link, bookmark_ids)
+    return redirect(url_for('index'))
+
 @app.route('/')
 def index():
     q = request.args.get('q', '')
     cat = request.args.get('category', '')
     tag = request.args.get('tag', '')
     sort = request.args.get('sort', 'id')
-    month = request.args.get('month', '') # Time Machine
+    month = request.args.get('month', '')
 
     query = Bookmark.query
-    if q: # Full-Text Search (Title, URL, Scraped Content, Tags)
+    if q:
         query = query.filter(Bookmark.title.contains(q) | Bookmark.url.contains(q) | Bookmark.content.contains(q) | Bookmark.tags.contains(q))
     if cat: query = query.filter(Bookmark.category == cat)
     if tag: query = query.filter(Bookmark.tags.contains(tag))
-    if month: # Time Machine Logic
-        m_dt = datetime.strptime(month, '%Y-%m')
-        query = query.filter(extract('year', Bookmark.date_added) == m_dt.year, extract('month', Bookmark.date_added) == m_dt.month)
+    if month:
+        try:
+            m_dt = datetime.strptime(month, '%Y-%m')
+            query = query.filter(extract('year', Bookmark.date_added) == m_dt.year, extract('month', Bookmark.date_added) == m_dt.month)
+        except: pass
 
     if sort == 'clicks': query = query.order_by(Bookmark.clicks.desc())
     elif sort == 'title': query = query.order_by(Bookmark.title.asc())
     elif sort == 'dead': query = query.order_by(Bookmark.is_dead.desc())
     else: query = query.order_by(Bookmark.date_added.desc())
 
-    # Data for Sidebar & Stats
     categories = db.session.query(Bookmark.category, db.func.count(Bookmark.id)).group_by(Bookmark.category).all()
     all_tags = sorted(list(set([t.strip() for r in db.session.query(Bookmark.tags).all() for t in r[0].split(',') if t.strip()])))
-    months = db.session.query(Bookmark.date_added).order_by(Bookmark.date_added.desc()).all()
-    unique_months = sorted(list(set([d[0].strftime('%Y-%m') for d in months])), reverse=True)
+    months_raw = db.session.query(Bookmark.date_added).order_by(Bookmark.date_added.desc()).all()
+    unique_months = sorted(list(set([d[0].strftime('%Y-%m') for d in months_raw])), reverse=True)
 
     return render_template('index.html', 
         bookmarks=query.all(), 
@@ -73,6 +93,16 @@ def index():
         total=Bookmark.query.count(), 
         top_links=Bookmark.query.order_by(Bookmark.clicks.desc()).limit(5).all(),
         search_query=q, current_cat=cat, current_tag=tag)
+
+@app.route('/move_bookmark', methods=['POST'])
+def move_bookmark():
+    data = request.json
+    b = Bookmark.query.get(data['id'])
+    if b:
+        b.category = data['category']
+        db.session.commit()
+        return jsonify({"status": "success"})
+    return jsonify({"status": "error"}), 400
 
 @app.route('/add', methods=['POST'])
 def add():
@@ -97,7 +127,8 @@ def import_file():
         if file.filename.lower().endswith('.html'):
             soup = BeautifulSoup(file.read(), 'html.parser')
             for a in soup.find_all('a'):
-                db.session.add(Bookmark(title=a.text, url=a.get('href'), category="Imported"))
+                href = a.get('href')
+                if href: db.session.add(Bookmark(title=a.text or href, url=href, category="Imported"))
         else:
             df = pd.read_csv(file) if file.filename.endswith('.csv') else pd.read_excel(file)
             df.columns = [c.lower().strip() for c in df.columns]
@@ -122,14 +153,6 @@ def bulk_update():
             for b in targets.all():
                 b.tags = f"{b.tags},{new_tag}".strip(',')
         db.session.commit()
-    return redirect(url_for('index'))
-
-@app.route('/check_links')
-def check_links():
-    for b in Bookmark.query.all():
-        try: b.is_dead = requests.head(b.url, timeout=2).status_code >= 400
-        except: b.is_dead = True
-    db.session.commit()
     return redirect(url_for('index'))
 
 @app.route('/export/<fmt>')
