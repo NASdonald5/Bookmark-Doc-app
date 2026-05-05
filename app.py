@@ -25,13 +25,12 @@ class Bookmark(db.Model):
     url = db.Column(db.String(500), nullable=False)
     category = db.Column(db.String(100), default='General')
     tags = db.Column(db.String(200), default='')
-    content = db.Column(db.Text, default='') # For Full-Text Search
+    content = db.Column(db.Text, default='') 
     clicks = db.Column(db.Integer, default=0)
     is_dead = db.Column(db.Boolean, default=False)
     date_added = db.Column(db.DateTime, default=datetime.utcnow)
 
 def scrape_metadata(url):
-    """Intelligence Feature: Automated Metadata Scraping"""
     try:
         headers = {'User-Agent': 'Mozilla/5.0'}
         r = requests.get(url, headers=headers, timeout=5)
@@ -53,19 +52,16 @@ def index():
     sort = request.args.get('sort', 'newest')
 
     query = Bookmark.query
-
-    # Search & Filtering Logic (Full-Text Search)
     if q:
         query = query.filter(Bookmark.title.contains(q) | Bookmark.url.contains(q) | Bookmark.content.contains(q))
     if cat:
         query = query.filter(Bookmark.category == cat)
     if tag:
         query = query.filter(Bookmark.tags.contains(tag))
-    if month and year: # Time Machine Filter
-        query = query.filter(db.extract('month', Bookmark.date_added) == month)
-        query = query.filter(db.extract('year', Bookmark.date_added) == year)
+    if month and year:
+        query = query.filter(db.extract('month', Bookmark.date_added) == int(month))
+        query = query.filter(db.extract('year', Bookmark.date_added) == int(year))
 
-    # Sorting
     if sort == 'clicks': query = query.order_by(Bookmark.clicks.desc())
     elif sort == 'oldest': query = query.order_by(Bookmark.date_added.asc())
     else: query = query.order_by(Bookmark.date_added.desc())
@@ -75,7 +71,6 @@ def index():
     total = Bookmark.query.count()
     top_links = Bookmark.query.order_by(Bookmark.clicks.desc()).limit(5).all()
     
-    # Tag Cloud calculation
     all_tags_raw = db.session.query(Bookmark.tags).all()
     unique_tags = sorted(list(set([t.strip() for row in all_tags_raw for t in row[0].split(',') if t.strip()])))
 
@@ -88,7 +83,6 @@ def add():
     url = request.form['url']
     scraped_title, content = scrape_metadata(url)
     title = request.form['title'] if request.form['title'] else scraped_title
-    
     new_bm = Bookmark(title=title, url=url, category=request.form['category'], 
                       tags=request.form['tags'], content=content)
     db.session.add(new_bm)
@@ -97,18 +91,27 @@ def add():
 
 @app.route('/import_file', methods=['POST'])
 def import_file():
+    if 'file' not in request.files: return redirect(url_for('index'))
     file = request.files['file']
-    filename = file.filename
-    if filename.endswith('.html'):
-        soup = BeautifulSoup(file.read(), 'html.parser')
-        for link in soup.find_all('a'):
-            db.session.add(Bookmark(title=link.text, url=link.get('href'), category="Imported"))
-    elif filename.endswith(('.csv', '.xlsx')):
-        df = pd.read_csv(file) if filename.endswith('.csv') else pd.read_excel(file)
-        for _, row in df.iterrows():
-            db.session.add(Bookmark(title=row.get('title'), url=row.get('url'), 
-                                    category=row.get('category'), tags=row.get('tags')))
-    db.session.commit()
+    try:
+        filename = file.filename.lower()
+        if filename.endswith('.html'):
+            soup = BeautifulSoup(file.read(), 'html.parser')
+            for link in soup.find_all('a'):
+                db.session.add(Bookmark(title=link.text or link.get('href'), url=link.get('href'), category="Imported"))
+        elif filename.endswith(('.csv', '.xlsx')):
+            df = pd.read_csv(file) if filename.endswith('.csv') else pd.read_excel(file)
+            df.columns = [c.lower().strip() for c in df.columns]
+            for _, row in df.iterrows():
+                u = row.get('url') or row.get('address') or row.get('link')
+                if u:
+                    db.session.add(Bookmark(title=str(row.get('title', u)), url=str(u), 
+                                            category=str(row.get('category', 'Imported')), 
+                                            tags=str(row.get('tags', ''))))
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return f"Import failed: {str(e)}", 500
     return redirect(url_for('index'))
 
 @app.route('/bulk_update', methods=['POST'])
@@ -122,13 +125,11 @@ def bulk_update():
 
 @app.route('/health_check')
 def health_check():
-    """Intelligence Feature: Dead Link Detection"""
     for bm in Bookmark.query.all():
         try:
             r = requests.head(bm.url, timeout=3, allow_redirects=True)
             bm.is_dead = (r.status_code >= 400)
-        except:
-            bm.is_dead = True
+        except: bm.is_dead = True
     db.session.commit()
     return redirect(url_for('index'))
 
