@@ -7,9 +7,6 @@
 └── templates/<br/>
     └── index.html<br/>
 ### How to run it on your own machine
-sudo nano ./install-Bookmarkapp.sh <br/>
-Then copy the contents of this file and run the script.<br/>
-###
 
 #Create the file install-Bookmarkapp.sh <br/>
 :~# sudo nano install-Bookmarkapp.sh  <br/>
