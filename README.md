@@ -21,17 +21,7 @@
 
 # File:- install-Bookmarkapp.sh <br/>
 #!/bin/bash\
-#sudo nano install-Bookmarkapp.sh <br/>
-#Then copy the contents of this file and run the script. <br/>
-
-#Provide execute access to the script file <br/>
-#sudo chmod +x install-Bookmarkapp.sh <br/>
-
 #remove previous versions if any.<br/>
-
-#run the script using ./<filename>.sh<br/>
-#sudo ./install-Bookmarkapp.sh <br/>
-
 sudo rm -rf  Bookmark-Doc-app/
 sudo git clone https://github.com/NASdonald5/Bookmark-Doc-app.git
 cd Bookmark-Doc-app/
