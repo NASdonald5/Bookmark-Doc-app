@@ -1,8 +1,4 @@
 # A simple Book Mark Manger
-### How to run it on your own machine
-sudo nano install-Bookmarkapp.sh <br/>
-Then copy the contents of this file and run the script.<br/>
-###
 ### Docker template:
 /bookmark-app <br/>
 ├── app.py<br/>
@@ -10,8 +6,10 @@ Then copy the contents of this file and run the script.<br/>
 ├── docker-compose.yml<br/>
 └── templates/<br/>
     └── index.html<br/>
-
-# File:- install-Bookmarkapp.sh <br/>
+### How to run it on your own machine
+sudo nano ./install-Bookmarkapp.sh <br/>
+Then copy the contents of this file and run the script.<br/>
+###
 
 #Create the file install-Bookmarkapp.sh <br/>
 :~# sudo nano install-Bookmarkapp.sh  <br/>
@@ -22,8 +20,10 @@ Then copy the contents of this file and run the script.<br/>
 
 #run the script using ./<filename>.sh<br/>
 :~# sudo ./install-Bookmarkapp.sh <br/>
+****************************************<br/>
 
-#!/bin/bash
+# File:- install-Bookmarkapp.sh <br/>
+#!/bin/bash\
 #sudo nano install-Bookmarkapp.sh <br/>
 #Then copy the contents of this file and run the script. <br/>
 
