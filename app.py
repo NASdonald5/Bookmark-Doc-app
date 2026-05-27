@@ -167,9 +167,14 @@ def export(fmt):
         response.headers["Content-Disposition"] = "attachment; filename=bookmarks.html"
         return response
     
-    name = f"export.{fmt}"
-    if fmt == 'csv': df.to_csv(name, index=False)
-    elif fmt == 'excel': df.to_excel(name, index=False)
+# FIX: Check if the format is excel to assign the correct .xlsx extension
+    if fmt == 'csv':
+        name = "export.csv"
+        df.to_csv(name, index=False)
+    elif fmt == 'excel':
+        name = "export.xlsx"
+        df.to_excel(name, index=False)
+        
     return send_file(name, as_attachment=True)
 
 @app.route('/backup')
